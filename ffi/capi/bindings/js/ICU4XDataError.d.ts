@@ -9,32 +9,26 @@ export enum ICU4XDataError {
   Unknown = 'Unknown',
   /**
    */
-  MissingDataMarker = 'MissingDataMarker',
+  MarkerNotFound = 'MarkerNotFound',
   /**
    */
-  MissingLocale = 'MissingLocale',
+  IdentifierNotFound = 'IdentifierNotFound',
   /**
    */
-  NeedsLocale = 'NeedsLocale',
+  InvalidRequest = 'InvalidRequest',
   /**
    */
-  ExtraneousLocale = 'ExtraneousLocale',
+  InconsistentData = 'InconsistentData',
   /**
    */
-  FilteredResource = 'FilteredResource',
+  Downcast = 'Downcast',
   /**
    */
-  MismatchedType = 'MismatchedType',
+  Deserialize = 'Deserialize',
   /**
    */
   Custom = 'Custom',
   /**
    */
   Io = 'Io',
-  /**
-   */
-  UnavailableBufferFormat = 'UnavailableBufferFormat',
-  /**
-   */
-  InconsistentData = 'InconsistentData',
 }
