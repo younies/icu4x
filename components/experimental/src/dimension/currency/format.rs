@@ -5,11 +5,13 @@
 // TODO: add more tests for this module to cover more locales & currencies.
 #[cfg(test)]
 mod tests {
+    use crate::dimension::currency::{
+        formatter::CurrencyFormatter, options::CurrencyDisplay, options::CurrencyFormatterOptions,
+        CurrencyCode,
+    };
     use icu_locale_core::locale;
     use tinystr::*;
     use writeable::assert_writeable_eq;
-
-    use crate::dimension::currency::{formatter::CurrencyFormatter, CurrencyCode};
 
     #[test]
     pub fn test_en_us() {
@@ -65,5 +67,83 @@ mod tests {
             formatted_currency,
             "\u{61c}-\u{200f}١٢٬٣٤٥٫٦٧\u{a0}ج.م.\u{200f}"
         );
+    }
+
+    #[test]
+    #[should_panic] // TODO(#7785): implement currencyDisplay
+    pub fn test_currency_display_code_en_us() {
+        let locale = locale!("en-US").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let fmt = CurrencyFormatter::try_new(
+            locale,
+            CurrencyFormatterOptions {
+                currency_display: CurrencyDisplay::Code,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let value = "12345.67".parse().unwrap();
+        let formatted_currency = fmt.format_fixed_decimal(&value, &currency_code);
+
+        assert_writeable_eq!(formatted_currency, "USD 12,345.67");
+    }
+
+    #[test]
+    pub fn test_currency_display_symbol_en_us() {
+        let locale = locale!("en-US").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let fmt = CurrencyFormatter::try_new(
+            locale,
+            CurrencyFormatterOptions {
+                currency_display: CurrencyDisplay::Symbol,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let value = "12345.67".parse().unwrap();
+        let formatted_currency = fmt.format_fixed_decimal(&value, &currency_code);
+
+        assert_writeable_eq!(formatted_currency, "$12,345.67");
+    }
+
+    #[test]
+    pub fn test_currency_display_narrow_symbol_en_us() {
+        let locale = locale!("en-US").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let fmt = CurrencyFormatter::try_new(
+            locale,
+            CurrencyFormatterOptions {
+                currency_display: CurrencyDisplay::NarrowSymbol,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let value = "12345.67".parse().unwrap();
+        let formatted_currency = fmt.format_fixed_decimal(&value, &currency_code);
+
+        assert_writeable_eq!(formatted_currency, "$12,345.67");
+    }
+
+    #[test]
+    #[should_panic] // TODO(#7785): implement currencyDisplay
+    pub fn test_currency_display_name_en_us() {
+        let locale = locale!("en-US").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let fmt = CurrencyFormatter::try_new(
+            locale,
+            CurrencyFormatterOptions {
+                currency_display: CurrencyDisplay::Name,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let value = "12345.67".parse().unwrap();
+        let formatted_currency = fmt.format_fixed_decimal(&value, &currency_code);
+
+        assert_writeable_eq!(formatted_currency, "12,345.67 US dollars");
     }
 }

@@ -15,12 +15,46 @@ use serde::{Deserialize, Serialize};
 pub struct CurrencyFormatterOptions {
     /// The width of the currency format.
     pub width: Width,
+
+    /// The display style for currencies.
+    /// Default is [`CurrencyDisplay::Symbol`].
+    pub currency_display: CurrencyDisplay,
 }
 
 impl From<Width> for CurrencyFormatterOptions {
     fn from(width: Width) -> Self {
-        Self { width }
+        Self {
+            width,
+            currency_display: CurrencyDisplay::default(),
+        }
     }
+}
+
+impl From<CurrencyDisplay> for CurrencyFormatterOptions {
+    fn from(currency_display: CurrencyDisplay) -> Self {
+        Self {
+            width: Width::default(),
+            currency_display,
+        }
+    }
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub enum CurrencyDisplay {
+    /// Display with the default currency symbol.
+    #[default]
+    Symbol,
+
+    /// Display with the narrow currency symbol.
+    NarrowSymbol,
+
+    /// Display with the ISO currency code.
+    Code,
+
+    /// Display with the localized currency name.
+    Name,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Clone, Copy, Hash)]
