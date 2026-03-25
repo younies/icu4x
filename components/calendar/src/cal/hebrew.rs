@@ -389,8 +389,8 @@ impl Date<Hebrew> {
     /// valid range of `-9999..=9999`.
     ///
     /// ```rust
-    /// use icu::calendar::Date;
     /// use icu::calendar::types::Month;
+    /// use icu::calendar::Date;
     ///
     /// let date = Date::try_new_hebrew_v2(5782, Month::leap(5), 7)
     ///     .expect("Failed to initialize Date instance.");
@@ -398,7 +398,7 @@ impl Date<Hebrew> {
     /// assert_eq!(date.era_year().year, 5782);
     /// // Adar I
     /// assert_eq!(date.month().number(), 5);
-    /// assert_eq!(date.month().is_leap(), true);
+    /// assert!(date.month().to_input().is_leap());
     /// assert_eq!(date.day_of_month().0, 7);
     /// ```
     pub fn try_new_hebrew_v2(
