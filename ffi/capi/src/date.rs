@@ -365,6 +365,8 @@ pub mod ffi {
         #[diplomat::rust_link(icu::calendar::Date::try_new_from_codes, FnInStruct, hidden)]
         #[diplomat::rust_link(icu::calendar::types::Month::try_from_str, FnInStruct)]
         #[diplomat::rust_link(icu::calendar::types::Month::try_from_utf8, FnInStruct, hidden)]
+        #[diplomat::rust_link(icu::calendar::types::Month::leap, FnInStruct, hidden)]
+        #[diplomat::rust_link(icu::calendar::types::Month::new, FnInStruct, hidden)]
         #[diplomat::rust_link(icu::calendar::types::YearInput, Enum, hidden)]
         #[diplomat::attr(all(supports = fallible_constructors, supports = named_constructors), named_constructor)]
         pub fn from_codes_in_calendar(
