@@ -802,6 +802,11 @@ mod tests {
         for chrono in time_zones_to_test() {
             let iana = chrono.name();
 
+            if iana == "America/Tijuana" {
+                // 2025c not yet in chrono
+                continue;
+            }
+
             let zoneinfo64 = TZDB.get(iana).unwrap();
 
             for seconds_since_epoch in transitions(iana, false)
@@ -892,6 +897,7 @@ mod tests {
             }
 
             // TODO: investigate why these zones don't work with jiff/tzdb-bundle-always
+            // https://github.com/unicode-org/icu4x/issues/7813
             if matches!(
                 iana,
                 "America/Ciudad_Juarez"
@@ -900,6 +906,8 @@ mod tests {
                     | "America/Indiana/Winamac"
                     | "America/Metlakatla"
                     | "America/North_Dakota/Beulah"
+                    // Broke in the 2025c update
+                    | "Europe/Chisinau"
             ) {
                 continue;
             }
@@ -925,7 +933,7 @@ mod tests {
 
                 assert_eq!(
                     zoneinfo64.prev_transition(curr.since - 1, true, require_offset_change),
-                    Some(prev)
+                    Some(prev),
                 );
                 assert_eq!(
                     zoneinfo64.prev_transition(curr.since - 1, false, require_offset_change),
@@ -938,7 +946,7 @@ mod tests {
 
                 assert_eq!(
                     zoneinfo64.prev_transition(curr.since, false, require_offset_change),
-                    Some(curr)
+                    Some(curr),
                 );
                 assert_eq!(
                     zoneinfo64.prev_transition(curr.since + 1, true, require_offset_change),
