@@ -101,6 +101,8 @@ pub mod cal;
 pub mod options;
 pub mod provider;
 pub mod types;
+#[path = "third_party.rs"]
+pub mod unstable_third_party;
 pub mod week;
 
 mod calendar;
