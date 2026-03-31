@@ -40,7 +40,7 @@ Fully filled in up to 43d4d6f154
             - New method: `Date::weekday()`
         - Deprecate `Date::new_from_iso`/`Date::to_iso` (unicode-org#7287)
         - Deprecate `Date::extended_year()` (use `Date::year().extended_year()`) (unicode-org#7289)
-        - Remove `YearInfo: PartialEq` bound (unicode-org#7743) 
+        - Remove `YearInfo: PartialEq` bound (unicode-org#7743)
         - Start producing Meiji era only after Meiji 6 (unicode-org#7503)
         - Correctly produce `ethioaa` calendars from `CalendarAlgorithm` (unicode-org#7321)
         - Respect `-u-rg` in calendar resolution (unicode-org#7376)
@@ -71,6 +71,7 @@ Fully filled in up to 43d4d6f154
     - `icu_collator`
         - Document considerations related to lowering the collation strength from the default (unicode-org#6662)
         - (Optimization) Avoid tagging Hangul syllable in collation data (unicode-org#7540)
+        - Make skipping zeros in the numeric mode bugwards-compatible with ICU4C fixing a panic (unicode-org#7835)
     - `icu_datetime`
 
         - Add AM/PM getters on `FixedCalendarDateTimeNames` (unicode-org#7127)
