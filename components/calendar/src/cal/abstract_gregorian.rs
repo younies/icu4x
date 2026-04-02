@@ -3,7 +3,7 @@
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
 use crate::cal::iso::{IsoDateInner, IsoEra};
-use crate::calendar_arithmetic::{ArithmeticDate, DateFieldsResolver};
+use crate::calendar_arithmetic::{ArithmeticDate, DateFieldsResolver, PackWithMD};
 use crate::error::{
     DateAddError, DateFromFieldsError, DateNewError, EcmaReferenceYearError, UnknownEraError,
 };
@@ -33,18 +33,71 @@ pub(crate) trait GregorianYears: Clone + core::fmt::Debug {
     fn debug_name(&self) -> &'static str;
 }
 
-pub(crate) const REFERENCE_YEAR: i32 = 1972;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct AbstractGregorianYear {
+    iso_year: i32,
+}
+
+impl core::ops::Sub<AbstractGregorianYear> for AbstractGregorianYear {
+    type Output = i32;
+    #[inline]
+    fn sub(self, rhs: AbstractGregorianYear) -> Self::Output {
+        self.iso_year - rhs.iso_year
+    }
+}
+
+impl AbstractGregorianYear {
+    pub(crate) fn from_extended_year<Y: GregorianYears>(extended_year: i32) -> Self {
+        Self {
+            iso_year: extended_year + Y::EXTENDED_YEAR_OFFSET,
+        }
+    }
+    #[allow(unused)] // only in ixdtf, jiff, ...
+    pub(crate) fn from_iso_year(iso_year: i32) -> Self {
+        Self { iso_year }
+    }
+    pub(crate) fn to_extended_year<Y: GregorianYears>(self) -> i32 {
+        self.iso_year - Y::EXTENDED_YEAR_OFFSET
+    }
+    pub(crate) fn to_iso_year(self) -> i32 {
+        self.iso_year
+    }
+}
+
+impl PackWithMD for AbstractGregorianYear {
+    type Packed = <i32 as PackWithMD>::Packed;
+    #[inline]
+    fn pack(self, month: u8, day: u8) -> Self::Packed {
+        <i32 as PackWithMD>::pack(self.iso_year, month, day)
+    }
+    #[inline]
+    fn unpack_day(packed: Self::Packed) -> u8 {
+        <i32 as PackWithMD>::unpack_day(packed)
+    }
+    #[inline]
+    fn unpack_month(packed: Self::Packed) -> u8 {
+        <i32 as PackWithMD>::unpack_month(packed)
+    }
+    #[inline]
+    fn unpack_year(packed: Self::Packed) -> Self {
+        let iso_year = <i32 as PackWithMD>::unpack_year(packed);
+        Self { iso_year }
+    }
+}
+
+pub(crate) const REFERENCE_YEAR: AbstractGregorianYear = AbstractGregorianYear { iso_year: 1972 };
+
 #[cfg(test)]
 pub(crate) const LAST_DAY_OF_REFERENCE_YEAR: RataDie =
-    calendrical_calculations::gregorian::day_before_year(REFERENCE_YEAR + 1);
+    calendrical_calculations::gregorian::day_before_year(REFERENCE_YEAR.iso_year + 1);
 
 impl<Y: GregorianYears> DateFieldsResolver for AbstractGregorian<Y> {
     // Gregorian year
-    type YearInfo = i32;
+    type YearInfo = AbstractGregorianYear;
 
-    fn days_in_provided_month(year: i32, month: u8) -> u8 {
+    fn days_in_provided_month(year: AbstractGregorianYear, month: u8) -> u8 {
         if month == 2 {
-            28 + calendrical_calculations::gregorian::is_leap_year(year) as u8
+            28 + calendrical_calculations::gregorian::is_leap_year(year.iso_year) as u8
         } else {
             // https://www.youtube.com/watch?v=J9KijLyP-yg&t=1394s
             30 | month ^ (month >> 3)
@@ -62,7 +115,12 @@ impl<Y: GregorianYears> DateFieldsResolver for AbstractGregorian<Y> {
 
     #[inline]
     fn year_info_from_extended(&self, extended_year: i32) -> Self::YearInfo {
-        extended_year + Y::EXTENDED_YEAR_OFFSET
+        AbstractGregorianYear::from_extended_year::<Y>(extended_year)
+    }
+
+    #[inline]
+    fn extended_from_year_info(&self, year_info: Self::YearInfo) -> i32 {
+        year_info.to_extended_year::<Y>()
     }
 
     #[inline]
@@ -75,7 +133,7 @@ impl<Y: GregorianYears> DateFieldsResolver for AbstractGregorian<Y> {
     }
 
     fn to_rata_die_inner(year: Self::YearInfo, month: u8, day: u8) -> RataDie {
-        calendrical_calculations::gregorian::fixed_from_gregorian(year, month, day)
+        calendrical_calculations::gregorian::fixed_from_gregorian(year.iso_year, month, day)
     }
 }
 
@@ -106,11 +164,11 @@ impl<Y: GregorianYears> Calendar for AbstractGregorian<Y> {
 
     fn from_rata_die(&self, date: RataDie) -> Self::DateInner {
         // by precondition the year cannot exceed i32, so the error case is unreachable
-        let (year, month, day) =
+        let (iso_year, month, day) =
             calendrical_calculations::gregorian::gregorian_from_fixed(date).unwrap_or((1, 1, 1));
 
         // date is in the valid RD range
-        ArithmeticDate::new_unchecked(year, month, day)
+        ArithmeticDate::new_unchecked(AbstractGregorianYear { iso_year }, month, day)
     }
 
     fn to_rata_die(&self, date: &Self::DateInner) -> RataDie {
@@ -134,7 +192,7 @@ impl<Y: GregorianYears> Calendar for AbstractGregorian<Y> {
     }
 
     fn days_in_year(&self, date: &Self::DateInner) -> u16 {
-        365 + calendrical_calculations::gregorian::is_leap_year(date.year()) as u16
+        365 + calendrical_calculations::gregorian::is_leap_year(date.year().iso_year) as u16
     }
 
     fn days_in_month(&self, date: &Self::DateInner) -> u8 {
@@ -168,14 +226,14 @@ impl<Y: GregorianYears> Calendar for AbstractGregorian<Y> {
 
     fn year_info(&self, date: &Self::DateInner) -> Self::Year {
         self.0.era_year_from_extended(
-            date.year() - Y::EXTENDED_YEAR_OFFSET,
+            date.year().to_extended_year::<Y>(),
             date.month(),
             date.day(),
         )
     }
 
     fn is_in_leap_year(&self, date: &Self::DateInner) -> bool {
-        calendrical_calculations::gregorian::is_leap_year(date.year())
+        calendrical_calculations::gregorian::is_leap_year(date.year().iso_year)
     }
 
     fn month(&self, date: &Self::DateInner) -> types::MonthInfo {
@@ -188,8 +246,10 @@ impl<Y: GregorianYears> Calendar for AbstractGregorian<Y> {
 
     fn day_of_year(&self, date: &Self::DateInner) -> types::DayOfYear {
         types::DayOfYear(
-            calendrical_calculations::gregorian::days_before_month(date.year(), date.month())
-                + date.day() as u16,
+            calendrical_calculations::gregorian::days_before_month(
+                date.year().iso_year,
+                date.month(),
+            ) + date.day() as u16,
         )
     }
 
