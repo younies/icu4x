@@ -1330,7 +1330,10 @@ impl<T: TrieValue + databake::Bake> databake::Bake for CodePointTrie<'_, T> {
         let index = self.index.bake(env);
         let data = self.data.bake(env);
         let error_value = self.error_value.bake(env);
-        databake::quote! { unsafe { icu_collections::codepointtrie::CodePointTrie::from_parts_unstable_unchecked_v1(#header, #index, #data, #error_value) } }
+        databake::quote! { unsafe {
+            #[allow(unused_unsafe)]
+            icu_collections::codepointtrie::CodePointTrie::from_parts_unstable_unchecked_v1(#header, #index, #data, #error_value)
+        }}
     }
 }
 
@@ -1870,12 +1873,12 @@ mod tests {
     }
 
     #[test]
-    #[allow(unused_unsafe)] // `unsafe` below is both necessary and unnecessary
     fn databake() {
         databake::test_bake!(
             CodePointTrie<'static, u32>,
             const,
             unsafe {
+                #[allow(unused_unsafe)]
                 crate::codepointtrie::CodePointTrie::from_parts_unstable_unchecked_v1(
                     crate::codepointtrie::CodePointTrieHeader {
                         high_start: 1u32,
