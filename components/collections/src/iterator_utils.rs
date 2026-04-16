@@ -31,11 +31,9 @@ where
         // range from last time, or the next range
         let mut ret = if let Some(peek) = self.peek.take() {
             peek
-        } else if let Some(next) = self.iter.next() {
-            next
         } else {
-            // No ranges, exit early
-            return None;
+            // Exit early when there are no ranges
+            self.iter.next()?
         };
 
         // Keep pulling ranges
