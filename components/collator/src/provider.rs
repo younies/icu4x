@@ -323,12 +323,48 @@ icu_provider::data_struct!(
 #[derive(Debug, PartialEq, Clone, yoke::Yokeable, zerofrom::ZeroFrom)]
 #[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
 #[cfg_attr(feature = "datagen", databake(path = icu_collator::provider))]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct CollationJamo<'data> {
     /// `CollationElement32`s (as `u32`s) for the Hangul Jamo Unicode Block.
     /// The length must be equal to the size of the block (256).
-    #[cfg_attr(feature = "serde", serde(borrow))]
     pub ce32s: ZeroVec<'data, u32>,
+}
+
+impl<'data> CollationJamo<'data> {
+    pub(crate) fn as_array(
+        &'data self,
+    ) -> &'data [<u32 as AsULE>::ULE; crate::elements::JAMO_COUNT] {
+        #[allow(clippy::unwrap_used)] // by invariant
+        self.ce32s.as_ule_slice().try_into().unwrap()
+    }
+}
+
+// TODO: redesign Korean search collation handling
+
+#[cfg(feature = "compiled_data")]
+const _: () = assert!(
+    Baked::SINGLETON_COLLATION_JAMO_V1.ce32s.as_slice().len() == crate::elements::JAMO_COUNT
+);
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for CollationJamo<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct Raw<'data> {
+            #[cfg_attr(feature = "serde", serde(borrow))]
+            ce32s: ZeroVec<'data, u32>,
+        }
+
+        let Raw { ce32s } = Raw::deserialize(deserializer)?;
+
+        if ce32s.len() != crate::elements::JAMO_COUNT {
+            return Err(serde::de::Error::custom("invalid"));
+        }
+
+        Ok(Self { ce32s })
+    }
 }
 
 icu_provider::data_struct!(
@@ -554,7 +590,6 @@ impl CollationMetadata {
 #[derive(Debug, PartialEq, Clone, yoke::Yokeable, zerofrom::ZeroFrom)]
 #[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
 #[cfg_attr(feature = "datagen", databake(path = icu_collator::provider))]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct CollationSpecialPrimaries<'data> {
     /// The primaries corresponding to `MaxVariable`
     /// character classes packed so that each fits in
@@ -564,10 +599,40 @@ pub struct CollationSpecialPrimaries<'data> {
     /// This is potentially followed by 256 bits
     /// (packed in 16 u16s) to classify every possible
     /// byte into compressible or non-compressible.
-    #[cfg_attr(feature = "serde", serde(borrow))]
     pub last_primaries: ZeroVec<'data, u16>,
     /// The high 8 bits of the numeric primary
     pub numeric_primary: u8,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for CollationSpecialPrimaries<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct Raw<'data> {
+            #[cfg_attr(feature = "serde", serde(borrow))]
+            last_primaries: ZeroVec<'data, u16>,
+            numeric_primary: u8,
+        }
+
+        let Raw {
+            last_primaries,
+            numeric_primary,
+        } = Raw::deserialize(deserializer)?;
+
+        // `variant_count` isn't stable yet:
+        // https://github.com/rust-lang/rust/issues/73662
+        if last_primaries.len() <= (MaxVariable::Currency as usize) {
+            return Err(serde::de::Error::custom("invalid"));
+        }
+
+        Ok(Self {
+            last_primaries,
+            numeric_primary,
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, yoke::Yokeable, zerofrom::ZeroFrom)]
@@ -584,8 +649,8 @@ pub(crate) struct CollationSpecialPrimariesValidated<'data> {
     pub compressible_bytes: &'data [<u16 as AsULE>::ULE; 16],
 }
 
-impl CollationSpecialPrimariesValidated<'static> {
-    pub(crate) const HARDCODED_COMPRESSIBLE_BYTES_FALLBACK: &'static [<u16 as AsULE>::ULE; 16] = &[
+impl<'a> CollationSpecialPrimaries<'a> {
+    const HARDCODED_COMPRESSIBLE_BYTES_FALLBACK: &'static [<u16 as AsULE>::ULE; 16] = &[
         <u16 as AsULE>::ULE::from_unsigned(0b0000_0000_0000_0000),
         <u16 as AsULE>::ULE::from_unsigned(0b0000_0000_0000_0000),
         <u16 as AsULE>::ULE::from_unsigned(0b0000_0000_0000_0000),
@@ -603,6 +668,64 @@ impl CollationSpecialPrimariesValidated<'static> {
         <u16 as AsULE>::ULE::from_unsigned(0b0000_0000_0000_0000),
         <u16 as AsULE>::ULE::from_unsigned(0b0100_0000_0000_0000),
     ];
+
+    pub(crate) fn validated(self) -> CollationSpecialPrimariesValidated<'a> {
+        let (last_primaries, compressible_bytes) =
+            if let Some(borrowed) = self.last_primaries.as_maybe_borrowed() {
+                let (l, c) = borrowed
+                    .as_ule_slice()
+                    // by invariant
+                    .split_at(MaxVariable::Currency as usize + 1);
+                (
+                    l,
+                    c.try_into()
+                        .unwrap_or(Self::HARDCODED_COMPRESSIBLE_BYTES_FALLBACK),
+                )
+            } else {
+                (
+                    self.last_primaries.as_slice().as_ule_slice(),
+                    Self::HARDCODED_COMPRESSIBLE_BYTES_FALLBACK,
+                )
+            };
+
+        let last_primaries_truncate_len = last_primaries.len();
+        CollationSpecialPrimariesValidated {
+            last_primaries: self.last_primaries.truncated(last_primaries_truncate_len),
+            numeric_primary: self.numeric_primary,
+            compressible_bytes,
+        }
+    }
+
+    #[cfg(feature = "compiled_data")]
+    pub(crate) const fn const_validated(&'static self) -> CollationSpecialPrimariesValidated<'a> {
+        let borrowed = self.last_primaries.as_slice();
+        let (last_primaries, compressible_bytes) = borrowed
+            .as_ule_slice()
+            // by invariant
+            .split_at(MaxVariable::Currency as usize + 1);
+        // TODO: use c.as_array() on MSRV 1.93
+        let compressible_bytes = if compressible_bytes.len() == 16 {
+            unsafe { &*(compressible_bytes.as_ptr() as *const [<u16 as AsULE>::ULE; 16]) }
+        } else {
+            Self::HARDCODED_COMPRESSIBLE_BYTES_FALLBACK
+        };
+
+        CollationSpecialPrimariesValidated {
+            last_primaries: ZeroSlice::from_ule_slice(last_primaries).as_zerovec(),
+            numeric_primary: self.numeric_primary,
+            compressible_bytes,
+        }
+    }
+}
+
+#[test]
+fn compressible_bytes() {
+    assert_eq!(
+        Baked::SINGLETON_COLLATION_SPECIAL_PRIMARIES_V1
+            .clone()
+            .validated(),
+        Baked::SINGLETON_COLLATION_SPECIAL_PRIMARIES_V1.const_validated(),
+    );
 }
 
 icu_provider::data_struct!(
