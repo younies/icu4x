@@ -637,6 +637,7 @@ pub fn unicode_data() -> AbstractFs {
         "ucd/PropertyValueAliases.txt",
         "ucd/ScriptExtensions.txt",
         "ucd/Scripts.txt",
+        "ucd/Unihan/Unihan_IRGSources.txt",
         "ucd/VerticalOrientation.txt",
         "ucd/auxiliary/GraphemeBreakProperty.txt",
         "ucd/auxiliary/SentenceBreakProperty.txt",
@@ -649,8 +650,7 @@ pub fn unicode_data() -> AbstractFs {
         "ucd/extracted/DerivedGeneralCategory.txt",
         "ucd/extracted/DerivedJoiningGroup.txt",
         "ucd/extracted/DerivedJoiningType.txt",
-        "ucd/extracted/DerivedNumericType.txt",
-        "ucd/unihan/Unihan_IRGSources.txt"
+        "ucd/extracted/DerivedNumericType.txt"
     )
 }
 
