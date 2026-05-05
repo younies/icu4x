@@ -4,7 +4,6 @@
 
 use crate::complex::ComplexPayloadsBorrowed;
 use crate::indices::{Latin1Indices, Utf16Indices};
-use crate::options::WordType;
 use crate::provider::*;
 use alloc::vec::Vec;
 use core::str::CharIndices;
@@ -23,6 +22,9 @@ pub trait RuleBreakType: crate::private::Sealed + Sized {
 
     /// The character type.
     type CharType: Copy + Into<u32> + core::fmt::Debug;
+
+    #[doc(hidden)]
+    const CAN_CONTAIN_SA: bool;
 
     #[doc(hidden)]
     fn char_len(ch: Self::CharType) -> usize;
@@ -49,6 +51,7 @@ pub struct RuleBreakIterator<'data, 's, Y: RuleBreakType> {
     pub(crate) result_cache: Vec<usize>,
     pub(crate) data: &'data RuleBreakData<'data>,
     pub(crate) complex: Option<ComplexPayloadsBorrowed<'data>>,
+    // The property associated with the previous break
     pub(crate) boundary_property: u8,
     pub(crate) locale_override: Option<&'data RuleBreakDataOverride<'data>>,
     // Should return None if there is no complex language handling
@@ -99,13 +102,14 @@ impl<Y: RuleBreakType> Iterator for RuleBreakIterator<'_, '_, Y> {
                 return Some(0);
             }
             let Some(right_prop) = self.get_current_break_property() else {
-                // iterator already reaches to EOT. Reset boundary property for word-like.
+                // iterator already reaches to EOT. Reset boundary property.
                 self.boundary_property = 0;
                 return None;
             };
             // SOT x anything
             if matches!(
-                self.get_break_state_from_table(self.data.sot_property, right_prop),
+                self.data
+                    .get_break_state_from_table(self.data.sot_property, right_prop),
                 BreakState::Break | BreakState::NoMatch
             ) {
                 self.boundary_property = 0; // SOT is special type
@@ -126,19 +130,20 @@ impl<Y: RuleBreakType> Iterator for RuleBreakIterator<'_, '_, Y> {
 
             // Some segmenter rules doesn't have language-specific rules, we have to use LSTM (or dictionary) segmenter.
             // If property is marked as SA, use it
-            if right_prop == self.data.complex_property {
+            if Y::CAN_CONTAIN_SA && right_prop == self.data.complex_property {
                 if left_prop != self.data.complex_property {
                     // break before SA
                     self.boundary_property = left_prop;
                     return self.get_current_position();
                 }
                 let break_offset = (self.handle_complex_language)(self, left_codepoint);
+                self.boundary_property = self.data.complex_property;
                 if break_offset.is_some() {
                     return break_offset;
                 }
             }
 
-            match self.get_break_state_from_table(left_prop, right_prop) {
+            match self.data.get_break_state_from_table(left_prop, right_prop) {
                 BreakState::Keep => continue,
                 BreakState::Break | BreakState::NoMatch => {
                     self.boundary_property = left_prop;
@@ -156,7 +161,9 @@ impl<Y: RuleBreakType> Iterator for RuleBreakIterator<'_, '_, Y> {
                         let Some(prop) = self.get_current_break_property() else {
                             // Reached EOF. But we are analyzing multiple characters now, so next break may be previous point.
                             self.boundary_property = index;
-                            if self.get_break_state_from_table(index, self.data.eot_property)
+                            if (self
+                                .data
+                                .get_break_state_from_table(index, self.data.eot_property))
                                 == BreakState::NoMatch
                             {
                                 self.boundary_property = previous_left_prop;
@@ -171,7 +178,7 @@ impl<Y: RuleBreakType> Iterator for RuleBreakIterator<'_, '_, Y> {
                         let previous_break_state_is_cp_prop =
                             index <= self.data.last_codepoint_property;
 
-                        match self.get_break_state_from_table(index, prop) {
+                        match self.data.get_break_state_from_table(index, prop) {
                             BreakState::Keep => continue 'a,
                             BreakState::NoMatch => {
                                 self.boundary_property = previous_left_prop;
@@ -241,36 +248,16 @@ impl<Y: RuleBreakType> RuleBreakIterator<'_, '_, Y> {
         self.data.property_table.get32(codepoint.into())
     }
 
-    fn get_break_state_from_table(&self, left: u8, right: u8) -> BreakState {
-        let idx = left as usize * self.data.property_count as usize + right as usize;
-        // We use unwrap_or to fall back to the base case and prevent panics on bad data.
-        self.data
-            .break_state_table
-            .get(idx)
-            .unwrap_or(BreakState::Keep)
-    }
-
     /// Return the status value of break boundary.
-    /// If segmenter isn't word, always return [`WordType::None`]
-    pub fn word_type(&self) -> WordType {
-        if !self.result_cache.is_empty() {
-            // Dictionary type (CJ and East Asian) is letter.
-            return WordType::Letter;
-        }
+    pub(crate) fn rule_status(&self) -> u8 {
         if self.boundary_property == 0 {
             // break position is SOT / Any
-            return WordType::None;
+            return 0;
         }
         self.data
-            .word_type_table
+            .rule_status_table
             .get((self.boundary_property - 1) as usize)
-            .unwrap_or(WordType::None)
-    }
-
-    /// Return true when break boundary is word-like such as letter/number/CJK
-    /// If segmenter isn't word, return false
-    pub fn is_word_like(&self) -> bool {
-        self.word_type().is_word_like()
+            .unwrap_or_default()
     }
 }
 
@@ -284,6 +271,8 @@ impl crate::private::Sealed for Utf8 {}
 impl RuleBreakType for Utf8 {
     type IterAttr<'s> = CharIndices<'s>;
     type CharType = char;
+
+    const CAN_CONTAIN_SA: bool = true;
 
     fn char_len(ch: Self::CharType) -> usize {
         ch.len_utf8()
@@ -301,6 +290,8 @@ impl RuleBreakType for PotentiallyIllFormedUtf8 {
     type IterAttr<'s> = Utf8CharIndices<'s>;
     type CharType = char;
 
+    const CAN_CONTAIN_SA: bool = true;
+
     fn char_len(ch: Self::CharType) -> usize {
         ch.len_utf8()
     }
@@ -317,6 +308,8 @@ impl RuleBreakType for Latin1 {
     type IterAttr<'s> = Latin1Indices<'s>;
     type CharType = u8;
 
+    const CAN_CONTAIN_SA: bool = false;
+
     fn char_len(_ch: Self::CharType) -> usize {
         unreachable!()
     }
@@ -332,6 +325,8 @@ impl crate::private::Sealed for Utf16 {}
 impl RuleBreakType for Utf16 {
     type IterAttr<'s> = Utf16Indices<'s>;
     type CharType = u32;
+
+    const CAN_CONTAIN_SA: bool = true;
 
     fn char_len(ch: Self::CharType) -> usize {
         if ch >= 0x10000 {
