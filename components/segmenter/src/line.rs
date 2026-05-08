@@ -15,7 +15,7 @@ use icu_locale_core::LanguageIdentifier;
 use icu_provider::prelude::*;
 use utf8_iter::Utf8CharIndices;
 
-#[cfg(test)]
+#[cfg(feature = "unstable")]
 pub mod neo;
 
 #[doc(hidden)]
@@ -1755,9 +1755,7 @@ mod tests {
 
     #[test]
     fn linebreak() {
-        let segmenter = LineSegmenter::try_new_dictionary_unstable(&Baked, Default::default())
-            .expect("Data exists");
-        let segmenter = segmenter.as_borrowed();
+        let segmenter = LineSegmenter::new_dictionary(Default::default());
 
         let mut iter = segmenter.segment_str("hello world");
         assert_eq!(Some(0), iter.next());

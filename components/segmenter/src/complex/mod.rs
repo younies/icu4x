@@ -109,6 +109,19 @@ impl<'data> ComplexPayloadsBorrowed<'data> {
             Language::Unknown => None,
         }
     }
+
+    #[cfg(feature = "unstable")]
+    pub(crate) fn handles(&self, cp: u32) -> bool {
+        match get_language(cp) {
+            Language::Burmese => self.my.is_some(),
+            Language::Khmer => self.km.is_some(),
+            Language::ChineseOrJapanese => self.ja.is_some(),
+            Language::Lao => self.lo.is_some(),
+            Language::Thai => self.th.is_some(),
+            Language::Unknown => false,
+        }
+    }
+
     pub(crate) fn complex_language_segment_str(&self, input: &str) -> Vec<usize> {
         let mut result = Vec::new();
         let mut offset = 0;
