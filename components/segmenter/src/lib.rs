@@ -208,7 +208,4 @@ pub(crate) mod private {
 }
 
 #[cfg(feature = "unstable")]
-/// Experimental reimplementations
-pub mod neo {
-    pub use super::line::neo::*;
-}
+pub mod neo;
