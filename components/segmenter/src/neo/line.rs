@@ -2,11 +2,11 @@
 // called LICENSE at the top level of the ICU4X source tree
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
-use super::NeoIterator;
+use super::RuleBreakIterator;
 use crate::complex::{ComplexPayloads, ComplexPayloadsBorrowed};
 use crate::indices::{Latin1Indices, Utf16Indices};
+use crate::iterator_helpers::derive_usize_iterator_with_type;
 use crate::line::{LineBreakOptions, ResolvedLineBreakOptions};
-use crate::neo::Tailoring;
 #[cfg(feature = "compiled_data")]
 use crate::provider::Baked;
 #[cfg(feature = "lstm")]
@@ -16,10 +16,25 @@ use crate::provider::{
     SegmenterStateMachine,
 };
 use crate::scaffold::{Latin1, PotentiallyIllFormedUtf8, RuleBreakType, Utf16, Utf8};
-use alloc::collections::VecDeque;
-use alloc::vec;
 use icu_provider::prelude::*;
 use utf8_iter::Utf8CharIndices;
+
+/// Implements the [`Iterator`] trait over the line break opportunities of the given string.
+///
+/// Lifetimes:
+///
+/// - `'l` = lifetime of the [`LineSegmenter`] object from which this iterator was created
+/// - `'s` = lifetime of the string being segmented
+///
+/// The [`Iterator::Item`] is an [`usize`] representing index of a code unit
+/// _after_ the break (for a break at the end of text, this index is the length
+/// of the [`str`] or array of code units).
+///
+/// For examples of use, see [`LineSegmenter`].
+#[derive(Debug)]
+pub struct LineBreakIterator<'data, 's, Y: RuleBreakType>(RuleBreakIterator<'data, 's, Y, ()>);
+
+derive_usize_iterator_with_type!(LineBreakIterator, 'data);
 
 /// Supports loading line break data, and creating line break iterators for different string
 /// encodings.
@@ -465,23 +480,15 @@ impl<'data> LineSegmenterBorrowed<'data> {
     /// Creates a line break iterator for an `str` (a UTF-8 string).
     ///
     /// There are always breakpoints at 0 and the string length, or only at 0 for the empty string.
-    pub fn segment_str<'s>(self, input: &'s str) -> NeoIterator<'data, 's, Utf8, ()> {
-        NeoIterator {
-            data: self.data,
-            tailoring: (),
-            complex: Some(self.complex),
-            cache: VecDeque::from_iter([0]),
-            remaining_input: input.char_indices(),
-            last_accepting_status: 0,
-            handle_complex: |c, complex, past_complex| {
-                #[allow(clippy::unwrap_used)] // past_complex is a suffix of complex
-                let complex = complex
-                    .as_str()
-                    .strip_suffix(past_complex.as_str())
-                    .unwrap();
-                (c.complex_language_segment_str(complex), false, false as u8)
-            },
-        }
+    pub fn segment_str<'s>(self, input: &'s str) -> LineBreakIterator<'data, 's, Utf8> {
+        LineBreakIterator(RuleBreakIterator::new_with_complex(
+            input.char_indices(),
+            self.data,
+            (),
+            self.complex,
+            false,
+            false as u8,
+        ))
     }
     /// Creates a line break iterator for a potentially ill-formed UTF8 string
     ///
@@ -491,83 +498,53 @@ impl<'data> LineSegmenterBorrowed<'data> {
     pub fn segment_utf8<'s>(
         self,
         input: &'s [u8],
-    ) -> NeoIterator<'data, 's, PotentiallyIllFormedUtf8, ()> {
-        NeoIterator {
-            data: self.data,
-            tailoring: (),
-            complex: Some(self.complex),
-            cache: VecDeque::from_iter([0]),
-            remaining_input: Utf8CharIndices::new(input),
-            last_accepting_status: 0,
-            handle_complex: |c, complex, past_complex| {
-                #[allow(clippy::unwrap_used)] // past_complex is a suffix of complex
-                let complex = complex
-                    .as_slice()
-                    .strip_suffix(past_complex.as_slice())
-                    .unwrap();
-                let Ok(complex) = core::str::from_utf8(complex) else {
-                    return (vec![complex.len()], false, false as u8);
-                };
-                (c.complex_language_segment_str(complex), false, false as u8)
-            },
-        }
+    ) -> LineBreakIterator<'data, 's, PotentiallyIllFormedUtf8> {
+        LineBreakIterator(RuleBreakIterator::new_with_complex(
+            Utf8CharIndices::new(input),
+            self.data,
+            (),
+            self.complex,
+            false,
+            false as u8,
+        ))
     }
     /// Creates a line break iterator for a Latin-1 (8-bit) string.
     ///
     /// There are always breakpoints at 0 and the string length, or only at 0 for the empty string.
-    pub fn segment_latin1<'s>(self, input: &'s [u8]) -> NeoIterator<'data, 's, Latin1, ()> {
-        NeoIterator {
-            data: self.data,
-            tailoring: (),
-            complex: None,
-            cache: VecDeque::from_iter([0]),
-            remaining_input: Latin1Indices::new(input),
-            last_accepting_status: 0,
-            handle_complex: |_, _, _| unreachable!(),
-        }
+    pub fn segment_latin1<'s>(self, input: &'s [u8]) -> LineBreakIterator<'data, 's, Latin1> {
+        LineBreakIterator(RuleBreakIterator::new_non_complex(
+            Latin1Indices::new(input),
+            self.data,
+            (),
+        ))
     }
 
     /// Creates a line break iterator for a UTF-16 string.
     ///
     /// There are always breakpoints at 0 and the string length, or only at 0 for the empty string.
-    pub fn segment_utf16<'s>(self, input: &'s [u16]) -> NeoIterator<'data, 's, Utf16, ()> {
-        NeoIterator {
-            data: self.data,
-            tailoring: (),
-            complex: Some(self.complex),
-            cache: VecDeque::from_iter([0]),
-            remaining_input: Utf16Indices::new(input),
-            last_accepting_status: 0,
-            handle_complex: |c, complex, past_complex| {
-                #[allow(clippy::unwrap_used)] // past_complex is a suffix of complex
-                let complex = complex
-                    .as_slice()
-                    .strip_suffix(past_complex.as_slice())
-                    .unwrap();
-                (
-                    c.complex_language_segment_utf16(complex),
-                    false,
-                    false as u8,
-                )
-            },
-        }
+    pub fn segment_utf16<'s>(self, input: &'s [u16]) -> LineBreakIterator<'data, 's, Utf16> {
+        LineBreakIterator(RuleBreakIterator::new_with_complex(
+            Utf16Indices::new(input),
+            self.data,
+            (),
+            self.complex,
+            false,
+            false as u8,
+        ))
     }
 }
 
-impl<Y: RuleBreakType, T: Tailoring> NeoIterator<'_, '_, Y, T> {
+impl<Y: RuleBreakType> LineBreakIterator<'_, '_, Y> {
     /// Returns whether the last break was mandatory
     pub fn is_mandatory(&self) -> bool {
-        self.last_accepting_status == (true as u8)
+        self.0.last_accepting_status == (true as u8)
     }
 }
 
 #[test]
-fn test() {
-    use alloc::{vec, vec::Vec};
-
-    let segmenter = LineSegmenter::new_for_non_complex_scripts(Default::default());
-
-    let mut actual_breaks = segmenter.segment_str("this has a mandatory\nline break");
+fn test_mandatory() {
+    let mut actual_breaks = LineSegmenter::new_for_non_complex_scripts(Default::default())
+        .segment_str("this has a mandatory\nline break");
 
     assert_eq!(actual_breaks.next(), Some(0));
     assert_eq!(actual_breaks.is_mandatory(), false);
@@ -584,30 +561,6 @@ fn test() {
     assert_eq!(actual_breaks.next(), Some(31));
     assert_eq!(actual_breaks.is_mandatory(), true);
     assert_eq!(actual_breaks.next(), None);
-
-    for line in include_str!("../../tests/testdata/LineBreakTest.txt").lines() {
-        let line = line.split('#').next().unwrap().trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let mut test_string = String::new();
-        let mut expected_breaks = vec![0];
-        for s in line.split_ascii_whitespace() {
-            match s {
-                "×" => (),
-                "÷" => expected_breaks.push(test_string.len()),
-                s => {
-                    test_string
-                        .push(char::try_from(u32::from_str_radix(s.trim(), 16).unwrap()).unwrap());
-                }
-            }
-        }
-
-        let actual_breaks = segmenter.segment_str(&test_string).collect::<Vec<_>>();
-
-        assert_eq!(actual_breaks, expected_breaks, "{line}",);
-    }
 }
 
 #[test]

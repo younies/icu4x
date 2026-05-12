@@ -14,7 +14,7 @@ use crate::source::{include_files, SerdeCache, UnicodeCache};
 use crate::IterableDataProviderCached;
 use crate::SourceDataProvider;
 #[cfg(feature = "unstable")]
-use icu::collections::codepointinvliststringlist::CodePointInversionListAndStringList;
+use icu::collections::codepointinvlist::CodePointInversionList;
 use icu::properties::{
     props::{
         EastAsianWidth, GeneralCategory, GraphemeClusterBreak, IndicConjunctBreak, LineBreak,
@@ -1000,6 +1000,7 @@ impl SourceDataProvider {
         transitions: &str,
         status_lookup: fn(&str) -> u8,
     ) -> Result<SegmenterStateMachine<'static>, DataError> {
+        use icu::collections::codepointinvlist::CodePointInversionListBuilder;
         use icu::collections::codepointtrie::TrieType;
         use icu_codepointtrie_builder::CodePointTrieBuilder;
 
@@ -1010,14 +1011,20 @@ impl SourceDataProvider {
             class_lookup,
             state_lookup,
             lookahead_lookup,
+            ..
         } = ParsedNfa::parse_nfa_files(self, classes, states, transitions)?;
 
         let mut builder = CodePointTrieBuilder::new(0, 0, TrieType::Fast);
+        let mut missing_codepoints = CodePointInversionListBuilder::new();
+        missing_codepoints.add_set(&CodePointInversionList::all());
         for (&class, set) in &classes {
-            for range in set.code_points().iter_ranges() {
+            for range in set.iter_ranges() {
+                missing_codepoints.remove_range32(range.clone());
                 builder.set_range_value(range.clone(), class_lookup[class]);
             }
         }
+        let missing_codepoints = missing_codepoints.build();
+        assert!(missing_codepoints.is_empty(), "{missing_codepoints:?}");
         let classes = builder.build();
 
         let states = states
@@ -1075,7 +1082,7 @@ impl SourceDataProvider {
 #[cfg(any(feature = "use_wasm", feature = "use_icu4c"))]
 #[cfg(feature = "unstable")]
 struct ParsedNfa<'a> {
-    classes: BTreeMap<&'a str, CodePointInversionListAndStringList<'static>>,
+    classes: BTreeMap<&'a str, CodePointInversionList<'static>>,
     states: BTreeMap<&'a str, (&'a str, Option<&'a str>, &'a str)>,
     transitions: BTreeMap<(&'a str, &'a str), &'a str>,
     class_lookup: BTreeMap<&'a str, u8>,
@@ -1107,6 +1114,8 @@ impl<'a> ParsedNfa<'a> {
                             .with_display_context(&e.fmt_with_source(unicode_set))
                     })?
                     .0;
+                assert!(!set.has_strings());
+                let set = set.code_points().clone();
                 Ok((class, set))
             })
             .collect::<Result<BTreeMap<_, _>, DataError>>()?;
@@ -1144,8 +1153,8 @@ impl<'a> ParsedNfa<'a> {
             .flat_map(|(_, &(_, lookahead, _))| lookahead)
             .collect::<BTreeSet<_>>();
 
-        // Reserve one class for EOT
-        assert!(classes.len() < usize::from(Class::MAX) - 1);
+        // Reserve two classes for EOT and NO_CLASS
+        assert!(classes.len() < usize::from(Class::MAX) - 2);
         let class_lookup = core::iter::once("eot")
             .chain(classes.keys().filter(|&&s| s != "eot").copied())
             .enumerate()
@@ -1232,8 +1241,8 @@ impl DataProvider<SegmenterBreakSentenceOverrideV2> for SourceDataProvider {
                 include_str!("../../data/segmenter/neo/SentenceBreakTransitions.txt"),
             )?;
             let mut builder = icu_codepointtrie_builder::CodePointTrieBuilder::new(
-                class_lookup["eot"],
-                class_lookup["eot"],
+                SegmenterStateMachine::NO_CLASS,
+                SegmenterStateMachine::NO_CLASS,
                 self.trie_type().into(),
             );
 
