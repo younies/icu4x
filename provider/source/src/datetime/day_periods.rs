@@ -34,9 +34,7 @@ impl DataProvider<DayPeriodRulesV1> for SourceDataProvider {
                     .with_req(<DayPeriodRulesV1 as DataMarker>::INFO, req)
             })?;
 
-        let data = compute_day_periods(rules, &req.id.locale.to_string()).ok_or_else(|| {
-            DataErrorKind::IdentifierNotFound.with_req(<DayPeriodRulesV1 as DataMarker>::INFO, req)
-        })?;
+        let data = compute_day_periods(rules, &req.id.locale.to_string())?;
 
         Ok(DataResponse {
             metadata: Default::default(),
@@ -51,11 +49,7 @@ impl DataProvider<DayPeriodRulesV1> for SourceDataProvider {
 pub(crate) fn compute_day_periods(
     rules: &std::collections::BTreeMap<String, cldr_serde::day_periods::DayPeriodRule>,
     locale_str: &str,
-) -> Option<DayPeriodRules> {
-    if rules.is_empty() {
-        return None;
-    }
-
+) -> Result<DayPeriodRules, DataError> {
     let mut entries = std::collections::BTreeMap::new();
 
     for (period, rule) in rules {
@@ -82,7 +76,8 @@ pub(crate) fn compute_day_periods(
         }
     }
 
-    DayPeriodRules::from_cldr_rules(&entries)
+    DayPeriodRules::from_periods(&entries)
+        .map_err(|e| DataError::custom("rules").with_display_context(e))
 }
 
 impl IterableDataProviderCached<DayPeriodRulesV1> for SourceDataProvider {
@@ -98,7 +93,7 @@ impl IterableDataProviderCached<DayPeriodRulesV1> for SourceDataProvider {
             .iter()
             .filter_map(|(l, rules)| {
                 let langid: icu::locale::LanguageIdentifier = l.parse().unwrap();
-                if compute_day_periods(rules, l).is_some() {
+                if compute_day_periods(rules, l).is_ok() {
                     Some(DataIdentifierCow::from_locale(DataLocale::from(langid)))
                 } else {
                     None
@@ -176,16 +171,19 @@ mod tests {
 
         let rules = compute_day_periods(&rules, "test").unwrap();
 
-        // Test lookup for various hours
-        assert_eq!(rules.lookup(0), DayPeriod::Night1);
-        assert_eq!(rules.lookup(5), DayPeriod::Night1);
-        assert_eq!(rules.lookup(6), DayPeriod::Morning1);
-        assert_eq!(rules.lookup(11), DayPeriod::Morning1);
-        assert_eq!(rules.lookup(12), DayPeriod::Afternoon1);
-        assert_eq!(rules.lookup(17), DayPeriod::Afternoon1);
-        assert_eq!(rules.lookup(18), DayPeriod::Evening1);
-        assert_eq!(rules.lookup(20), DayPeriod::Evening1);
-        assert_eq!(rules.lookup(21), DayPeriod::Night1);
-        assert_eq!(rules.lookup(23), DayPeriod::Night1);
+        assert_eq!(
+            rules,
+            DayPeriodRules::from_periods(
+                &[
+                    ((6, 12), DayPeriod::Morning1),
+                    ((12, 18), DayPeriod::Afternoon1),
+                    ((18, 21), DayPeriod::Evening1),
+                    ((21, 6), DayPeriod::Night1),
+                ]
+                .into_iter()
+                .collect()
+            )
+            .unwrap()
+        )
     }
 }

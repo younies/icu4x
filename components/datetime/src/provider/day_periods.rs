@@ -161,7 +161,7 @@ impl DayPeriodRules {
 
 #[cfg(feature = "datagen")]
 impl DayPeriodRules {
-    /// Computes `DayPeriodRules` from CLDR rule entries.
+    /// Computes `DayPeriodRules` from a set of periods/rules.
     ///
     /// Entries is a map from `(start_hour, end_hour)` tuple ranges to `DayPeriod`.
     /// Returns `None` if entries is empty, or if there are overlaps or gaps in 24-hour coverage.
@@ -170,11 +170,11 @@ impl DayPeriodRules {
         clippy::expect_used,
         reason = "Datagen is allowed to panic"
     )]
-    pub fn from_cldr_rules(
+    pub fn from_periods(
         entries: &alloc::collections::BTreeMap<(u8, u8), DayPeriod>,
-    ) -> Option<Self> {
+    ) -> Result<Self, &'static str> {
         if entries.is_empty() {
-            return None;
+            return Err("empty");
         }
 
         let mut presence = 0u8;
@@ -186,11 +186,9 @@ impl DayPeriodRules {
         for (&(start, end), &period) in entries {
             let mut h = start;
             loop {
-                assert!(
-                    hour_periods[h as usize].is_none(),
-                    "Overlapping day period rules detected at hour {}",
-                    h
-                );
+                if hour_periods[h as usize].is_some() {
+                    return Err("overlapping period");
+                }
                 hour_periods[h as usize] = Some(period as u8);
                 h = (h + 1) % 24;
                 if h == end || (h == 0 && end == 24) {
@@ -199,8 +197,16 @@ impl DayPeriodRules {
             }
         }
 
-        let hour_periods =
-            hour_periods.map(|p| p.expect("Gap detected in 24-hour day period coverage"));
+        for p in &hour_periods {
+            if p.is_none() {
+                return Err("gap between periods");
+            }
+        }
+
+        // TODO: change this to use array_try_map
+        // <https://github.com/rust-lang/rust/issues/79711>
+        #[allow(clippy::unwrap_used)] // just checked
+        let hour_periods = hour_periods.map(|p| p.unwrap());
 
         let mut current_period = entries
             .values()
@@ -231,7 +237,7 @@ impl DayPeriodRules {
         let bytes = transitions_u32.to_le_bytes();
         let transitions = [bytes[0], bytes[1], bytes[2]];
 
-        Some(DayPeriodRules {
+        Ok(DayPeriodRules {
             presence,
             transitions,
         })
@@ -242,122 +248,86 @@ impl DayPeriodRules {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_lookup() {
-        // Create a dummy DayPeriodRules
-        // presence: Morning1 (0), Afternoon1 (2), Night1 (6)
-        // presence = (1<<0) | (1<<2) | (1<<6) = 1 | 4 | 64 = 69
-        // transitions: transitions at 6 (Morning1), 12 (Afternoon1), 18 (Night1)
-        // 6 is bit 6 of byte 0.
-        // 12 is bit 4 of byte 1.
-        // 18 is bit 2 of byte 2.
+    #[track_caller]
+    fn test_rules(periods: &[((u8, u8), DayPeriod)]) {
+        let rules = DayPeriodRules::from_periods(&periods.iter().cloned().collect()).unwrap();
 
-        let mut transitions = [0u8; 3];
-        transitions[0] |= 1 << 6;
-        transitions[1] |= 1 << 4;
-        transitions[2] |= 1 << 2;
-
-        let rules = DayPeriodRules {
-            presence: (1 << (DayPeriod::Morning1 as u8))
-                | (1 << (DayPeriod::Afternoon1 as u8))
-                | (1 << (DayPeriod::Night1 as u8)),
-            transitions,
-        };
-
-        // At hour 0, no transition, so it should be Night1.
-        assert_eq!(rules.lookup(0), DayPeriod::Night1);
-        assert_eq!(rules.lookup(5), DayPeriod::Night1);
-
-        // At hour 6, transition to Morning1 (0).
-        assert_eq!(rules.lookup(6), DayPeriod::Morning1);
-        assert_eq!(rules.lookup(11), DayPeriod::Morning1);
-
-        // At hour 12, transition to Afternoon1 (2).
-        assert_eq!(rules.lookup(12), DayPeriod::Afternoon1);
-        assert_eq!(rules.lookup(17), DayPeriod::Afternoon1);
-
-        // At hour 18, transition to Night1 (6).
-        assert_eq!(rules.lookup(18), DayPeriod::Night1);
-        assert_eq!(rules.lookup(23), DayPeriod::Night1);
+        for &((start, end), period) in periods {
+            for hour in start..end {
+                assert_eq!(rules.lookup(hour % 24), period, "{hour}");
+            }
+        }
     }
 
-    #[cfg(feature = "datagen")]
     #[test]
-    fn test_constructor() {
-        let mut entries = std::collections::BTreeMap::new();
-        entries.insert((6, 12), DayPeriod::Morning1);
-        entries.insert((12, 18), DayPeriod::Afternoon1);
-        entries.insert((18, 21), DayPeriod::Evening1);
-        entries.insert((21, 6), DayPeriod::Night1);
+    fn test_roundtrip() {
+        test_rules(&[
+            ((6, 12), DayPeriod::Morning1),
+            ((12, 18), DayPeriod::Afternoon1),
+            ((18, 6), DayPeriod::Night1),
+        ]);
 
-        let rules = DayPeriodRules::from_cldr_rules(&entries).unwrap();
-        assert_eq!(rules.lookup(0), DayPeriod::Night1);
-        assert_eq!(rules.lookup(6), DayPeriod::Morning1);
-        assert_eq!(rules.lookup(12), DayPeriod::Afternoon1);
-        assert_eq!(rules.lookup(18), DayPeriod::Evening1);
-        assert_eq!(rules.lookup(21), DayPeriod::Night1);
+        test_rules(&[
+            ((6, 12), DayPeriod::Morning1),
+            ((12, 18), DayPeriod::Afternoon1),
+            ((18, 21), DayPeriod::Evening1),
+            ((21, 6), DayPeriod::Night1),
+        ]);
+
+        test_rules(&[((12, 12), DayPeriod::Morning1)]);
+
+        test_rules(&[
+            ((0, 12), DayPeriod::Morning1),
+            ((12, 18), DayPeriod::Afternoon1),
+            ((18, 21), DayPeriod::Evening1),
+            ((21, 24), DayPeriod::Night1),
+        ]);
+
+        test_rules(&[
+            ((0, 5), DayPeriod::Night1),
+            ((5, 8), DayPeriod::Morning1),
+            ((8, 12), DayPeriod::Morning2),
+            ((12, 13), DayPeriod::Afternoon1),
+            ((13, 19), DayPeriod::Afternoon2),
+            ((19, 24), DayPeriod::Evening1),
+        ]);
+
+        test_rules(&[
+            ((0, 5), DayPeriod::Night1),
+            ((5, 10), DayPeriod::Morning1),
+            ((10, 12), DayPeriod::Morning2),
+            ((12, 13), DayPeriod::Afternoon1),
+            ((13, 19), DayPeriod::Afternoon2),
+            ((19, 24), DayPeriod::Evening1),
+        ]);
     }
 
-    #[cfg(feature = "compiled_data")]
     #[test]
-    fn test_compiled_data() {
-        use icu_provider::prelude::*;
-        let provider = crate::provider::Baked;
-        let rules: DataPayload<DayPeriodRulesV1> = provider
-            .load(DataRequest {
-                id: DataIdentifierBorrowed::for_locale(&icu_locale::langid!("en").into()),
-                ..Default::default()
-            })
-            .unwrap()
-            .payload;
+    fn test_empty() {
+        assert!(DayPeriodRules::from_periods(&Default::default()).is_err());
+    }
 
-        assert_eq!(rules.get().lookup(0), DayPeriod::Morning1);
-        assert_eq!(rules.get().lookup(11), DayPeriod::Morning1);
-        assert_eq!(rules.get().lookup(12), DayPeriod::Afternoon1);
-        assert_eq!(rules.get().lookup(17), DayPeriod::Afternoon1);
-        assert_eq!(rules.get().lookup(18), DayPeriod::Evening1);
-        assert_eq!(rules.get().lookup(20), DayPeriod::Evening1);
-        assert_eq!(rules.get().lookup(21), DayPeriod::Night1);
-        assert_eq!(rules.get().lookup(23), DayPeriod::Night1);
+    #[test]
+    fn test_overlap() {
+        assert!(DayPeriodRules::from_periods(
+            &[
+                ((0, 12), DayPeriod::Morning1),
+                ((12, 19), DayPeriod::Afternoon1),
+                // Overlaps
+                ((18, 21), DayPeriod::Evening1),
+                ((21, 24), DayPeriod::Night1),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .is_err());
+    }
 
-        // Test 'zh' (Chinese) rules
-        let rules_zh: DataPayload<DayPeriodRulesV1> = provider
-            .load(DataRequest {
-                id: DataIdentifierBorrowed::for_locale(&icu_locale::langid!("zh").into()),
-                ..Default::default()
-            })
-            .unwrap()
-            .payload;
-        assert_eq!(rules_zh.get().lookup(0), DayPeriod::Night1);
-        assert_eq!(rules_zh.get().lookup(4), DayPeriod::Night1);
-        assert_eq!(rules_zh.get().lookup(5), DayPeriod::Morning1);
-        assert_eq!(rules_zh.get().lookup(7), DayPeriod::Morning1);
-        assert_eq!(rules_zh.get().lookup(8), DayPeriod::Morning2);
-        assert_eq!(rules_zh.get().lookup(11), DayPeriod::Morning2);
-        assert_eq!(rules_zh.get().lookup(12), DayPeriod::Afternoon1);
-        assert_eq!(rules_zh.get().lookup(13), DayPeriod::Afternoon2);
-        assert_eq!(rules_zh.get().lookup(18), DayPeriod::Afternoon2);
-        assert_eq!(rules_zh.get().lookup(19), DayPeriod::Evening1);
-        assert_eq!(rules_zh.get().lookup(23), DayPeriod::Evening1);
-
-        // Test 'de' (German) rules
-        let rules_de: DataPayload<DayPeriodRulesV1> = provider
-            .load(DataRequest {
-                id: DataIdentifierBorrowed::for_locale(&icu_locale::langid!("de").into()),
-                ..Default::default()
-            })
-            .unwrap()
-            .payload;
-        assert_eq!(rules_de.get().lookup(0), DayPeriod::Night1);
-        assert_eq!(rules_de.get().lookup(4), DayPeriod::Night1);
-        assert_eq!(rules_de.get().lookup(5), DayPeriod::Morning1);
-        assert_eq!(rules_de.get().lookup(9), DayPeriod::Morning1);
-        assert_eq!(rules_de.get().lookup(10), DayPeriod::Morning2);
-        assert_eq!(rules_de.get().lookup(11), DayPeriod::Morning2);
-        assert_eq!(rules_de.get().lookup(12), DayPeriod::Afternoon1);
-        assert_eq!(rules_de.get().lookup(13), DayPeriod::Afternoon2);
-        assert_eq!(rules_de.get().lookup(17), DayPeriod::Afternoon2);
-        assert_eq!(rules_de.get().lookup(18), DayPeriod::Evening1);
-        assert_eq!(rules_de.get().lookup(23), DayPeriod::Evening1);
+    #[test]
+    fn test_gap() {
+        assert!(DayPeriodRules::from_periods(
+            &[((0, 12), DayPeriod::Morning1),].into_iter().collect(),
+        )
+        .is_err());
     }
 }
