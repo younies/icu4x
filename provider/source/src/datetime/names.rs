@@ -18,11 +18,10 @@ use icu_pattern::SinglePlaceholderPattern;
 use icu_provider::prelude::*;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
+use zerovec::ule::vartuple::VarTuple;
 
-/// Most keys don't have short symbols (except weekdays)
-///
-/// We may further investigate and kick out standalone for some keys
-const NORMAL_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
+/// Lengths for day period data
+const DAY_PERIOD_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
     marker_attrs::ABBR,
     marker_attrs::NARROW,
     marker_attrs::WIDE,
@@ -31,8 +30,8 @@ const NORMAL_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
     marker_attrs::WIDE_STANDALONE,
 ];
 
-/// Lengths for month data (`NORMAL_MARKER_LENGTHS` + numeric)
-const NUMERIC_MONTHS_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
+/// Lengths for month data
+const MONTHS_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
     marker_attrs::ABBR,
     marker_attrs::NARROW,
     marker_attrs::WIDE,
@@ -46,8 +45,8 @@ const NUMERIC_MONTHS_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
 const YEARS_MARKER_LENGTHS: &[&DataMarkerAttributes] =
     &[marker_attrs::ABBR, marker_attrs::NARROW, marker_attrs::WIDE];
 
-/// All possible non-numeric lengths
-const FULL_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
+/// Lengths for weekday data
+const WEEKDAY_MARKER_LENGTHS: &[&DataMarkerAttributes] = &[
     marker_attrs::ABBR,
     marker_attrs::NARROW,
     marker_attrs::WIDE,
@@ -375,7 +374,7 @@ fn years_convert(
 #[allow(clippy::unnecessary_wraps)] // signature required by macro
 fn months_convert(
     _datagen: &SourceDataProvider,
-    locale: &DataLocale,
+    _locale: &DataLocale,
     data: &ca::Dates,
     calendar: DatagenCalendar,
     context: Context,
@@ -387,8 +386,33 @@ fn months_convert(
             Context::Format,
             "numeric months only found for Context::Format"
         );
+        if calendar == DatagenCalendar::Hebrew {
+            return Ok(MonthNames::LeapNumericWithBase(
+                (&[
+                    // M05L should be 6a
+                    VarTuple {
+                        sized: 1,
+                        variable: &SinglePlaceholderPattern::try_from_str(
+                            "{0}a",
+                            Default::default(),
+                        )
+                        .unwrap(),
+                    },
+                    // M06 should be 6b after M05L
+                    VarTuple {
+                        sized: 0,
+                        variable: &SinglePlaceholderPattern::try_from_str(
+                            "{0}b",
+                            Default::default(),
+                        )
+                        .unwrap(),
+                    },
+                ])
+                    .into(),
+            ));
+        }
         let Some(ref patterns) = data.month_patterns else {
-            panic!("No month_patterns found but numeric months were requested for {calendar:?} with {locale}");
+            return Ok(MonthNames::Numeric);
         };
         let pattern = patterns.get_symbols(context, length);
         return Ok(MonthNames::LeapNumeric(Cow::Owned(
@@ -646,7 +670,7 @@ macro_rules! impl_pattern_datagen {
 impl_symbols_datagen!(
     WeekdayNamesV1,
     DatagenCalendar::Gregorian,
-    FULL_MARKER_LENGTHS,
+    WEEKDAY_MARKER_LENGTHS,
     weekday_convert
 );
 
@@ -654,7 +678,7 @@ impl_symbols_datagen!(
 impl_symbols_datagen!(
     DayPeriodNamesV1,
     DatagenCalendar::Gregorian,
-    NORMAL_MARKER_LENGTHS,
+    DAY_PERIOD_MARKER_LENGTHS,
     dayperiods_convert
 );
 
@@ -736,73 +760,73 @@ impl_symbols_datagen!(
 impl_symbols_datagen!(
     DatetimeNamesMonthBuddhistV1,
     DatagenCalendar::Buddhist,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthChineseV1,
     DatagenCalendar::Chinese,
-    NUMERIC_MONTHS_MARKER_LENGTHS, // has leap month patterns
+    MONTHS_MARKER_LENGTHS, // has leap month patterns
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthCopticV1,
     DatagenCalendar::Coptic,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthDangiV1,
     DatagenCalendar::Dangi,
-    NUMERIC_MONTHS_MARKER_LENGTHS, // has leap month patterns
+    MONTHS_MARKER_LENGTHS, // has leap month patterns
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthEthiopianV1,
     DatagenCalendar::Ethiopic,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthGregorianV1,
     DatagenCalendar::Gregorian,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthHebrewV1,
     DatagenCalendar::Hebrew,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS, // has leap month patterns
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthIndianV1,
     DatagenCalendar::Indian,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthHijriV1,
     DatagenCalendar::Hijri,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthJapaneseV1,
     DatagenCalendar::Japanese,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthPersianV1,
     DatagenCalendar::Persian,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 impl_symbols_datagen!(
     DatetimeNamesMonthRocV1,
     DatagenCalendar::Roc,
-    NORMAL_MARKER_LENGTHS,
+    MONTHS_MARKER_LENGTHS,
     months_convert
 );
 
