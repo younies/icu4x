@@ -20,7 +20,7 @@ use zerovec::ule::NichedOption;
 
 impl SourceDataProvider {
     #[cfg(any(feature = "use_wasm", feature = "use_icu4c"))]
-    pub(super) fn build_enumerated_prop<T: EnumeratedProperty>(
+    pub(super) fn build_enumerated_prop<T: EnumeratedProperty + Debug>(
         &self,
         short_name_to_t: BTreeMap<&'static str, T>,
     ) -> Result<CodePointTrie<'static, T>, DataError> {
@@ -29,13 +29,7 @@ impl SourceDataProvider {
 
         self.validate_property_name(name, short_name)?;
 
-        let names_to_short_names = self.enumerated_prop_names(short_name)?;
-
-        let mut builder = icu_codepointtrie_builder::CodePointTrieBuilder::new(
-            T::default(),
-            T::default(),
-            self.trie_type().into(),
-        );
+        let (names_to_short_names, maybe_default) = self.enumerated_prop_names(name, short_name)?;
 
         let file = match name {
             "Indic_Conjunct_Break" => "ucd/DerivedCoreProperties.txt".into(),
@@ -63,7 +57,50 @@ impl SourceDataProvider {
             ),
         };
 
-        for line in self.unicode()?.read_to_string(&file)?.lines() {
+        let read_to_string = self.unicode()?.read_to_string(&file)?;
+
+        let ucd_default = read_to_string
+            .lines()
+            .find_map(|l| {
+                let mut fields = l
+                    .strip_prefix("# @missing: 0000..10FFFF; ")?
+                    .split(';')
+                    .map(str::trim);
+                if &file == "ucd/DerivedCoreProperties.txt" {
+                    // This is a file containing multiple properties, so we need to check
+                    // the second column for the property name
+                    if fields.next().unwrap() != short_name {
+                        return None;
+                    }
+                }
+                let value = fields.next().unwrap();
+                let value = names_to_short_names
+                    .get(value)
+                    .expect("file should only use names from PropertyValueAliases.txt")
+                    .0;
+                Some(value)
+            })
+            .or_else(|| maybe_default.map(|n| names_to_short_names[n].0))
+            .expect(short_name);
+
+        // @missing entries might use long or short names.
+        let ucd_default = *names_to_short_names
+            .get(ucd_default)
+            .map(|(n, _)| n)
+            .unwrap_or(&ucd_default);
+
+        assert_eq!(
+            *short_name_to_t.get(ucd_default).expect(ucd_default),
+            T::default()
+        );
+
+        let mut builder = icu_codepointtrie_builder::CodePointTrieBuilder::new(
+            T::default(),
+            T::default(),
+            self.trie_type().into(),
+        );
+
+        for line in read_to_string.lines() {
             let line = line.strip_prefix("# @missing: ").unwrap_or(line);
             let line = line.split('#').next().unwrap().trim();
             if line.is_empty() {
@@ -102,24 +139,34 @@ impl SourceDataProvider {
         Ok(builder.build())
     }
 
+    // The second element is a potential default value declared in PropertyValueAliases.txt
     #[allow(clippy::type_complexity)] // just a tuple
     fn enumerated_prop_names<'a>(
         &'a self,
+        name: &str,
         short_name: &str,
-    ) -> Result<BTreeMap<&'a str, (&'a str, NameType)>, DataError> {
+    ) -> Result<(BTreeMap<&'a str, (&'a str, NameType)>, Option<&'a str>), DataError> {
         let mut names = BTreeMap::new();
+        let mut default = None;
 
         for line in self
             .unicode()?
             .read_to_string("ucd/PropertyValueAliases.txt")?
             .lines()
         {
+            if let Some(line) = line.strip_prefix("# @missing: 0000..10FFFF; ") {
+                let mut parts = line.split(';').map(str::trim);
+                if parts.next().unwrap() != name {
+                    continue;
+                }
+                default = Some(parts.next().unwrap());
+            };
             let line = line.split('#').next().unwrap().trim();
             if line.is_empty() {
                 continue;
             }
             let mut parts = line.split(';').map(str::trim);
-            if parts.next().unwrap().trim() != short_name {
+            if parts.next().unwrap() != short_name {
                 continue;
             }
             let numeric_name = (short_name.as_bytes()
@@ -146,7 +193,7 @@ impl SourceDataProvider {
             }
         }
 
-        Ok(names)
+        Ok((names, default))
     }
 }
 
@@ -281,7 +328,7 @@ macro_rules! expand {
 
                     let short_name_to_t = <$prop>::names().collect::<BTreeMap<_, _>>();
 
-                    let names = self.enumerated_prop_names(core::str::from_utf8(<$prop as EnumeratedProperty>::SHORT_NAME).unwrap())?;
+                    let names = self.enumerated_prop_names(core::str::from_utf8(<$prop as EnumeratedProperty>::NAME).unwrap(), core::str::from_utf8(<$prop as EnumeratedProperty>::SHORT_NAME).unwrap())?.0;
 
                     for (name, _) in &short_name_to_t {
                         if !names.contains_key(name) && <$prop as EnumeratedProperty>::SHORT_NAME != icu::properties::props::Script::SHORT_NAME {
@@ -330,7 +377,7 @@ macro_rules! expand {
                     self.check_req::<$long_marker>(req)?;
                     let short_name_to_t = <$prop>::names().collect::<BTreeMap<_, _>>();
 
-                    let names = self.enumerated_prop_names(core::str::from_utf8(<$prop as EnumeratedProperty>::SHORT_NAME).unwrap())?;
+                    let names = self.enumerated_prop_names(core::str::from_utf8(<$prop as EnumeratedProperty>::NAME).unwrap(), core::str::from_utf8(<$prop as EnumeratedProperty>::SHORT_NAME).unwrap())?.0;
 
                     let names = short_name_to_t.iter().map(|(&short_name, &t)| (t, short_name))
                         .chain(names
@@ -403,7 +450,8 @@ impl DataProvider<PropertyNameParseGeneralCategoryMaskV1> for SourceDataProvider
         let short_name_to_t = GeneralCategoryGroup::names().collect::<BTreeMap<_, _>>();
 
         let trie = self
-            .enumerated_prop_names("gc")?
+            .enumerated_prop_names("General_Category", "gc")?
+            .0
             .into_iter()
             .filter(|(_, (_, ty))| matches!(ty, NameType::Short | NameType::Long | NameType::Alias))
             .filter_map(|(name, (short_name, _))| {
