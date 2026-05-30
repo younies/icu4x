@@ -6,6 +6,7 @@ use crate::*;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
+use resb::binary::helpers::I32Pair;
 use resb::binary::BinaryDeserializerError;
 use serde::de::*;
 use serde::Deserialize;
@@ -180,7 +181,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for TzZoneRaw<'a> {
 #[serde(rename_all = "camelCase")]
 pub struct TzZoneDataRaw<'a> {
     #[serde(borrow, deserialize_with = "resb::binary::helpers::i32_tuple")]
-    type_offsets: &'a [(i32, i32)],
+    type_offsets: &'a [I32Pair],
     #[serde(
         borrow,
         default,
@@ -192,13 +193,13 @@ pub struct TzZoneDataRaw<'a> {
         default,
         deserialize_with = "resb::binary::helpers::option_i32_tuple"
     )]
-    trans_pre32: Option<&'a [(i32, i32)]>,
+    trans_pre32: Option<&'a [I32Pair]>,
     #[serde(
         borrow,
         default,
         deserialize_with = "resb::binary::helpers::option_i32_tuple"
     )]
-    trans_post32: Option<&'a [(i32, i32)]>,
+    trans_post32: Option<&'a [I32Pair]>,
     type_map: Option<&'a [u8]>,
     #[serde(
         borrow,
@@ -255,41 +256,18 @@ fn rules<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<(&'de str, Tz
 }
 
 fn regions<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Region>, D::Error> {
-    struct RegionsVisitor;
-
-    impl<'de> Visitor<'de> for RegionsVisitor {
-        type Value = Vec<Region>;
-
-        fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-            write!(formatter, "a sequence of UTF-16 slices")
-        }
-
-        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: SeqAccess<'de>,
-        {
-            let mut vec = Vec::new();
-            while let Some(bytes) = seq.next_element::<&[u8]>()? {
-                let utf16 = PotentialUtf16::from_slice(
-                    // Safety: all byte representations are valid u16s
-                    unsafe { resb::binary::helpers::cast_bytes_to_slice::<_, A::Error>(bytes)? },
-                );
-
-                let mut utf16 = utf16.chars();
-
-                let Ok(region) = Region::try_from_raw([
-                    utf16.next().filter(char::is_ascii).unwrap_or_default() as u8,
-                    utf16.next().filter(char::is_ascii).unwrap_or_default() as u8,
-                    utf16.next().filter(char::is_ascii).unwrap_or_default() as u8,
-                ]) else {
-                    return Err(A::Error::custom("Invalid region code"));
-                };
-
-                vec.push(region);
-            }
-            Ok(vec)
-        }
+    let u16_slices = resb::binary::helpers::vec_utf_16(deserializer)?;
+    let mut vec = Vec::with_capacity(u16_slices.len());
+    for utf16 in u16_slices {
+        let mut chars = utf16.chars();
+        let Ok(region) = Region::try_from_raw([
+            chars.next().filter(char::is_ascii).unwrap_or_default() as u8,
+            chars.next().filter(char::is_ascii).unwrap_or_default() as u8,
+            chars.next().filter(char::is_ascii).unwrap_or_default() as u8,
+        ]) else {
+            return Err(D::Error::custom("Invalid region code"));
+        };
+        vec.push(region);
     }
-
-    deserializer.deserialize_seq(RegionsVisitor)
+    Ok(vec)
 }
