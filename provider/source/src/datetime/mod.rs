@@ -5,7 +5,10 @@
 use crate::cldr_serde;
 use crate::SourceDataProvider;
 use icu::calendar::AnyCalendarKind;
+use icu::datetime::provider::skeleton::reference::Skeleton;
+use icu::datetime::provider::skeleton::SkeletonError;
 use icu_provider::prelude::*;
+use std::collections::{BTreeMap, HashSet};
 
 mod available_formats;
 mod day_periods;
@@ -186,6 +189,93 @@ impl SourceDataProvider {
 
         Ok(resource)
     }
+}
+
+/// Iterates over all supported locales for a given calendar and generates
+/// `DataIdentifierCow` keys for all combinations of the provided fieldset attributes.
+///
+/// This is a shared helper used by both standard and range skeleton providers to
+/// generate the set of supported locales they can serve.
+///
+/// # Arguments
+/// * `provider` - The source data provider to load CLDR data from.
+/// * `calendar` - The calendar to load locales for (e.g., Gregorian, Buddhist). If `None`, uses "generic".
+/// * `fieldset_attributes` - A list of slices of data marker attributes to combine with each locale.
+pub(crate) fn iter_skeleton_supported_locales(
+    provider: &SourceDataProvider,
+    calendar: Option<DatagenCalendar>,
+    fieldset_attributes: &[&[&'static DataMarkerAttributes]],
+) -> Result<HashSet<DataIdentifierCow<'static>>, DataError> {
+    let cldr_cal = calendar
+        .map(DatagenCalendar::cldr_name)
+        .unwrap_or("generic");
+    Ok(provider
+        .cldr()?
+        .dates(cldr_cal)
+        .list_locales()?
+        .flat_map(|locale| {
+            fieldset_attributes
+                .iter()
+                .flat_map(|list| list.iter())
+                .map(move |attrs| DataIdentifierCow::from_borrowed_and_owned(attrs, locale))
+        })
+        .collect())
+}
+
+/// Parses a collection of raw CLDR skeleton strings and their associated values into a `BTreeMap`.
+///
+/// Skeletons that fail to parse via [`Skeleton::try_from`] are silently ignored.
+/// If a duplicate skeleton is encountered after normalization (e.g. due to 'E' vs 'c' forms),
+/// it will overwrite the previous value and log a warning.
+///
+/// # Example Input
+/// This function is designed to parse maps like:
+/// ```json
+/// {
+///   "yMd": "y/M/d",
+///   "yMMMMd": "y MMMM d",
+///   "invalid_skeleton": "pattern"
+/// }
+/// ```
+/// For `"yMd"`, it parses it into a `Skeleton` and calls `map_fn` with it and `"y/M/d"`.
+/// `"invalid_skeleton"` will be skipped.
+///
+/// # Arguments
+/// * `raw_patterns` - An iterator over `(skeleton_string, value)` pairs.
+/// * `map_fn` - A closure that maps the parsed `Skeleton` and the raw value into the desired result type `R`.
+pub(crate) fn parse_cldr_skeletons<'a, K, V: 'a, R, I, F>(
+    raw_patterns: I,
+    mut map_fn: F,
+) -> BTreeMap<Skeleton, R>
+where
+    K: AsRef<str> + 'a,
+    I: IntoIterator<Item = (&'a K, &'a V)>,
+    F: FnMut(&Skeleton, &'a V) -> Option<R>,
+{
+    let mut result = BTreeMap::new();
+    for (skeleton_str, value) in raw_patterns {
+        let skeleton = match Skeleton::try_from(skeleton_str.as_ref()) {
+            Ok(s) => s,
+            Err(SkeletonError::SymbolUnimplemented(_)) => continue,
+            Err(SkeletonError::SkeletonHasVariant) => continue,
+            Err(err) => panic!(
+                "Unexpected skeleton error while parsing skeleton {} {err}",
+                skeleton_str.as_ref()
+            ),
+        };
+        if let Some(mapped) = map_fn(&skeleton, value) {
+            // CLDR seems to be moving away from `c` in `availableFormats` skeleta.
+            // We don't expect to see both `E` and `c` for the same skeleton, but if we do,
+            // we warn and prefer the one that appeared later in the map (arbitrary).
+            if let Some(_old) = result.insert(skeleton.clone(), mapped) {
+                log::warn!(
+                    "Duplicate skeleton found after normalization: {}. This might happen if CLDR has both 'E' and 'c' forms.",
+                    skeleton
+                );
+            }
+        }
+    }
+    result
 }
 
 #[cfg(test)]
