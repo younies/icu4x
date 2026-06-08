@@ -69,6 +69,7 @@ pub trait ValueRepresentation {
 
 /// Standard decimal value representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Decimal;
 impl ValueRepresentation for Decimal {
     type InternalData = DecimalCurrencyData;
@@ -76,6 +77,7 @@ impl ValueRepresentation for Decimal {
 
 /// Compact value representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Compact;
 impl ValueRepresentation for Compact {
     type InternalData = CompactCurrencyData;
@@ -83,12 +85,14 @@ impl ValueRepresentation for Compact {
 
 /// Scientific value representation (stub for future implementation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Scientific;
 impl ValueRepresentation for Scientific {
     type InternalData = (); // Placeholder
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum DecimalCurrencyData {
     Standard {
         essential: DataPayload<CurrencyEssentialsV1>,
@@ -104,6 +108,7 @@ pub enum DecimalCurrencyData {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum CompactCurrencyData {
     Standard {
         _short_currency_compact: DataPayload<ShortCurrencyCompactV1>,
