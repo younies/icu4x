@@ -5,12 +5,11 @@
 use core::fmt::Display;
 use core::marker::PhantomData;
 use fixed_decimal::Decimal as FixedDecimal;
-use icu_decimal::{
-    DecimalFormatter, DecimalFormatterPreferences,
-    preferences::CompactDecimalFormatterPreferences,
-};
 #[cfg(feature = "compiled_data")]
 use icu_decimal::options::DecimalFormatterOptions;
+use icu_decimal::{
+    DecimalFormatter, DecimalFormatterPreferences, preferences::CompactDecimalFormatterPreferences,
+};
 use icu_locale_core::preferences::{define_preferences, prefs_convert};
 use icu_plurals::{PluralRules, PluralRulesPreferences};
 use icu_provider::prelude::*;
