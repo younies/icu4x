@@ -6,16 +6,20 @@ use core::fmt::Display;
 use core::marker::PhantomData;
 use fixed_decimal::Decimal as FixedDecimal;
 use icu_decimal::{
-    DecimalFormatter, DecimalFormatterPreferences, options::DecimalFormatterOptions,
+    DecimalFormatter, DecimalFormatterPreferences,
     preferences::CompactDecimalFormatterPreferences,
 };
+#[cfg(feature = "compiled_data")]
+use icu_decimal::options::DecimalFormatterOptions;
 use icu_locale_core::preferences::{define_preferences, prefs_convert};
 use icu_plurals::{PluralRules, PluralRulesPreferences};
 use icu_provider::prelude::*;
 use writeable::Writeable;
 
 use super::CurrencyCode;
-use super::options::{CurrencyFormatterOptions, Width};
+use super::options::CurrencyFormatterOptions;
+#[cfg(feature = "compiled_data")]
+use super::options::Width;
 use crate::dimension::provider::currency::{
     compact::ShortCurrencyCompactV1, essentials::CurrencyEssentialsV1,
     extended::CurrencyExtendedDataV1, patterns::CurrencyPatternsDataV1,
