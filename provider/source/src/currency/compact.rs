@@ -60,7 +60,7 @@ impl DataProvider<ShortCurrencyCompactV1> for SourceDataProvider {
             u8,
             (u8, PluralElements<Box<DoublePlaceholderPattern>>),
         > = BTreeMap::new();
-        let mut alpha_next_to_patterns: BTreeMap<
+        let mut alpha_next_to_number_patterns: BTreeMap<
             u8,
             (u8, PluralElements<Box<DoublePlaceholderPattern>>),
         > = BTreeMap::new();
@@ -68,7 +68,7 @@ impl DataProvider<ShortCurrencyCompactV1> for SourceDataProvider {
         for (target, source) in [
             (&mut standard_patterns, &compact_patterns.standard),
             (
-                &mut alpha_next_to_patterns,
+                &mut alpha_next_to_number_patterns,
                 &compact_patterns.alpha_next_to_number,
             ),
         ] {
@@ -105,7 +105,7 @@ impl DataProvider<ShortCurrencyCompactV1> for SourceDataProvider {
                         })
                         .dedup(),
                 )
-                .map_err(|e| DataError::custom("pattern").with_display_context(&e))?;
+                .map_err(|e| DataError::custom("Could not parse compact currency pattern").with_display_context(&e))?;
 
                 if log10_type < number_of_0s.unwrap_or_default() {
                     return Err(DataError::custom("pattern").with_display_context(&format!(
@@ -146,10 +146,14 @@ impl DataProvider<ShortCurrencyCompactV1> for SourceDataProvider {
         Ok(DataResponse {
             metadata: Default::default(),
             payload: DataPayload::from_owned(ShortCurrencyCompact {
-                standard: CompactPatterns::new(standard_patterns, None)
-                    .map_err(|e| DataError::custom("pattern").with_display_context(&e))?,
-                alpha_next_to_number: CompactPatterns::new(alpha_next_to_patterns, None)
-                    .map_err(|e| DataError::custom("pattern").with_display_context(&e))?,
+                standard: CompactPatterns::new(standard_patterns, None).map_err(|e| {
+                    DataError::custom("Invalid standard compact patterns").with_display_context(&e)
+                })?,
+                alpha_next_to_number: CompactPatterns::new(alpha_next_to_number_patterns, None)
+                    .map_err(|e| {
+                        DataError::custom("Invalid alpha-next-to-number compact patterns")
+                            .with_display_context(&e)
+                    })?,
             }),
         })
     }
