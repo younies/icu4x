@@ -77,13 +77,49 @@ impl CurrencyFormatter {
         prefs: CurrencyFormatterPreferences,
         options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
-        let locale = CurrencyEssentialsV1::make_locale(prefs.locale_preferences);
-        let decimal_formatter =
-            DecimalFormatter::try_new((&prefs).into(), DecimalFormatterOptions::default())?;
-        let essential = crate::provider::Baked
-            .load(DataRequest {
-                id: DataIdentifierBorrowed::for_locale(&locale),
-                ..Default::default()
+        let mut resolved_prefs = prefs;
+        if let Some(ns) = options.numbering_system {
+            if let Ok(val) = ns
+                .as_str()
+                .parse::<icu_locale_core::extensions::unicode::Value>()
+            {
+                if let Ok(nu) = crate::dimension::preferences::NumberingSystem::try_from(&val) {
+                    resolved_prefs.numbering_system = Some(nu);
+                }
+            }
+        }
+
+        let locale = CurrencyEssentialsV1::make_locale(resolved_prefs.locale_preferences);
+        let decimal_formatter = DecimalFormatter::try_new(
+            (&resolved_prefs).into(),
+            DecimalFormatterOptions::default(),
+        )?;
+
+        let req_numsys = resolved_prefs.numbering_system.as_ref().map(|s| s.as_str());
+        let essential = req_numsys
+            .and_then(|nu| {
+                crate::provider::Baked
+                    .load(DataRequest {
+                        id: DataIdentifierBorrowed::for_marker_attributes_and_locale(
+                            DataMarkerAttributes::from_str_or_panic(nu),
+                            &locale,
+                        ),
+                        metadata: {
+                            let mut m = DataRequestMetadata::default();
+                            m.silent = true;
+                            m
+                        },
+                    })
+                    .allow_identifier_not_found()
+                    .ok()
+                    .flatten()
+            })
+            .map(Ok)
+            .unwrap_or_else(|| {
+                crate::provider::Baked.load(DataRequest {
+                    id: DataIdentifierBorrowed::for_locale(&locale),
+                    ..Default::default()
+                })
             })?
             .payload;
 
@@ -106,16 +142,49 @@ impl CurrencyFormatter {
             + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>,
     {
-        let locale = CurrencyEssentialsV1::make_locale(prefs.locale_preferences);
+        let mut resolved_prefs = prefs;
+        if let Some(ns) = options.numbering_system {
+            if let Ok(val) = ns
+                .as_str()
+                .parse::<icu_locale_core::extensions::unicode::Value>()
+            {
+                if let Ok(nu) = crate::dimension::preferences::NumberingSystem::try_from(&val) {
+                    resolved_prefs.numbering_system = Some(nu);
+                }
+            }
+        }
+
+        let locale = CurrencyEssentialsV1::make_locale(resolved_prefs.locale_preferences);
         let decimal_formatter = DecimalFormatter::try_new_unstable(
             provider,
-            (&prefs).into(),
+            (&resolved_prefs).into(),
             DecimalFormatterOptions::default(),
         )?;
-        let essential = provider
-            .load(DataRequest {
-                id: DataIdentifierBorrowed::for_locale(&locale),
-                ..Default::default()
+        let req_numsys = resolved_prefs.numbering_system.as_ref().map(|s| s.as_str());
+        let essential = req_numsys
+            .and_then(|nu| {
+                provider
+                    .load(DataRequest {
+                        id: DataIdentifierBorrowed::for_marker_attributes_and_locale(
+                            DataMarkerAttributes::from_str_or_panic(nu),
+                            &locale,
+                        ),
+                        metadata: {
+                            let mut m = DataRequestMetadata::default();
+                            m.silent = true;
+                            m
+                        },
+                    })
+                    .allow_identifier_not_found()
+                    .ok()
+                    .flatten()
+            })
+            .map(Ok)
+            .unwrap_or_else(|| {
+                provider.load(DataRequest {
+                    id: DataIdentifierBorrowed::for_locale(&locale),
+                    ..Default::default()
+                })
             })?
             .payload;
 

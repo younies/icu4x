@@ -110,7 +110,14 @@ impl DataProvider<CurrencyEssentialsV1> for SourceDataProvider {
             .numbers()
             .read_and_parse(req.id.locale, "numbers.json")?;
 
-        let result = extract_currency_essentials(self, currencies_resource, numbers_resource);
+        let nsname = if !req.id.marker_attributes.is_empty() {
+            req.id.marker_attributes.as_str()
+        } else {
+            &numbers_resource.main.value.numbers.default_numbering_system
+        };
+
+        let result =
+            extract_currency_essentials(self, currencies_resource, numbers_resource, nsname);
 
         Ok(DataResponse {
             metadata: Default::default(),
@@ -121,12 +128,7 @@ impl DataProvider<CurrencyEssentialsV1> for SourceDataProvider {
 
 impl IterableDataProviderCached<CurrencyEssentialsV1> for SourceDataProvider {
     fn iter_ids_cached(&self) -> Result<HashSet<DataIdentifierCow<'static>>, DataError> {
-        Ok(self
-            .cldr()?
-            .numbers()
-            .list_locales()?
-            .map(DataIdentifierCow::from_locale)
-            .collect())
+        self.iter_ids_for_numbers_with_locales()
     }
 }
 
@@ -134,18 +136,24 @@ fn extract_currency_essentials<'data>(
     provider: &SourceDataProvider,
     currencies_resource: &cldr_serde::currencies::data::Resource,
     numbers_resource: &cldr_serde::numbers::Resource,
+    numsys_name: &str,
 ) -> Result<CurrencyEssentials<'data>, DataError> {
     let currencies = &currencies_resource.main.value.numbers.currencies;
 
-    // TODO(#3838): these patterns might be numbering system dependent.
-    let currency_formats = &&numbers_resource
-        .main
-        .value
-        .numbers
+    let numbers_block = &numbers_resource.main.value.numbers;
+    let default_numsys = &numbers_block.default_numbering_system;
+    let currency_formats = numbers_block
         .numsys_data
         .currency_patterns
-        .get("latn")
-        .ok_or_else(|| DataError::custom("Could not find the standard pattern"))?;
+        .get(numsys_name)
+        .or_else(|| {
+            numbers_block
+                .numsys_data
+                .currency_patterns
+                .get(default_numsys)
+        })
+        .or_else(|| numbers_block.numsys_data.currency_patterns.get("latn"))
+        .ok_or_else(|| DataError::custom("Could not find currency patterns"))?;
 
     let standard = &currency_formats.standard;
     let standard_alpha_next_to_number = currency_formats
