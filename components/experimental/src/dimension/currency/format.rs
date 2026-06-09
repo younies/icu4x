@@ -9,7 +9,7 @@ mod tests {
     use tinystr::*;
     use writeable::assert_writeable_eq;
 
-    use crate::dimension::currency::{CurrencyCode, formatter::CurrencyFormatter};
+    use crate::dimension::currency::{CurrencyCode, formatter::CurrencyFormatter, options::CurrencyFormatterOptions};
 
     #[test]
     pub fn test_en_us() {
@@ -64,6 +64,37 @@ mod tests {
         assert_writeable_eq!(
             formatted_currency,
             "\u{61c}-\u{200f}١٢٬٣٤٥٫٦٧\u{a0}ج.م.\u{200f}"
+        );
+    }
+
+    #[test]
+    pub fn test_numbering_system_override() {
+        let locale_arab = locale!("ar-EG").into();
+        let locale_latn = locale!("ar-EG-u-nu-latn").into();
+        let currency_code = CurrencyCode(tinystr!(3, "EGP"));
+        let value = "12345.67".parse().unwrap();
+
+        // 1. Default numbering system (arab)
+        let fmt_arab = CurrencyFormatter::try_new(locale_arab, Default::default()).unwrap();
+        assert_writeable_eq!(
+            fmt_arab.format_fixed_decimal(&value, &currency_code),
+            "\u{200f}١٢٬٣٤٥٫٦٧\u{a0}ج.م.\u{200f}"
+        );
+
+        // 2. Locale extension override (latn)
+        let fmt_latn = CurrencyFormatter::try_new(locale_latn, Default::default()).unwrap();
+        assert_writeable_eq!(
+            fmt_latn.format_fixed_decimal(&value, &currency_code),
+            "\u{200f}12,345.67\u{a0}ج.م.\u{200f}"
+        );
+
+        // 3. Programmatic options override (latn over arab locale)
+        let mut options = CurrencyFormatterOptions::default();
+        options.numbering_system = Some(tinystr!(8, "latn"));
+        let fmt_opts = CurrencyFormatter::try_new(locale_arab, options).unwrap();
+        assert_writeable_eq!(
+            fmt_opts.format_fixed_decimal(&value, &currency_code),
+            "\u{200f}12,345.67\u{a0}ج.م.\u{200f}"
         );
     }
 }
