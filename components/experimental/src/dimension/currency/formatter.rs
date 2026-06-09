@@ -81,7 +81,11 @@ impl CurrencyFormatter {
         if let Some(nu) = options
             .numbering_system
             .as_ref()
-            .and_then(|ns| ns.as_str().parse::<icu_locale_core::extensions::unicode::Value>().ok())
+            .and_then(|ns| {
+                ns.as_str()
+                    .parse::<icu_locale_core::extensions::unicode::Value>()
+                    .ok()
+            })
             .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
         {
             resolved_prefs.numbering_system = Some(nu);
@@ -144,7 +148,11 @@ impl CurrencyFormatter {
         if let Some(nu) = options
             .numbering_system
             .as_ref()
-            .and_then(|ns| ns.as_str().parse::<icu_locale_core::extensions::unicode::Value>().ok())
+            .and_then(|ns| {
+                ns.as_str()
+                    .parse::<icu_locale_core::extensions::unicode::Value>()
+                    .ok()
+            })
             .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
         {
             resolved_prefs.numbering_system = Some(nu);
