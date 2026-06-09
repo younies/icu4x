@@ -142,6 +142,9 @@ fn extract_currency_essentials<'data>(
 
     let numbers_block = &numbers_resource.main.value.numbers;
     let default_numsys = &numbers_block.default_numbering_system;
+    // Per UTS #35 (LDML Part 3: Numbers), if a pattern block (such as currencyFormats) is not
+    // explicitly defined under a specific non-Latin numbering system (e.g., "arab"), LDML mandates
+    // falling back to the "latn" numbering system within the same locale.
     let currency_formats = numbers_block
         .numsys_data
         .currency_patterns
