@@ -89,8 +89,10 @@ mod tests {
         );
 
         // 3. Programmatic options override (latn over arab locale)
-        let mut options = CurrencyFormatterOptions::default();
-        options.numbering_system = Some(tinystr!(8, "latn"));
+        let options = CurrencyFormatterOptions {
+            numbering_system: Some(tinystr!(8, "latn")),
+            ..Default::default()
+        };
         let fmt_opts = CurrencyFormatter::try_new(locale_arab, options).unwrap();
         assert_writeable_eq!(
             fmt_opts.format_fixed_decimal(&value, &currency_code),

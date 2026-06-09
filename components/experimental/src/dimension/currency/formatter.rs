@@ -78,15 +78,13 @@ impl CurrencyFormatter {
         options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         let mut resolved_prefs = prefs;
-        if let Some(ns) = options.numbering_system {
-            if let Ok(val) = ns
-                .as_str()
-                .parse::<icu_locale_core::extensions::unicode::Value>()
-            {
-                if let Ok(nu) = crate::dimension::preferences::NumberingSystem::try_from(&val) {
-                    resolved_prefs.numbering_system = Some(nu);
-                }
-            }
+        if let Some(nu) = options
+            .numbering_system
+            .as_ref()
+            .and_then(|ns| ns.as_str().parse::<icu_locale_core::extensions::unicode::Value>().ok())
+            .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
+        {
+            resolved_prefs.numbering_system = Some(nu);
         }
 
         let locale = CurrencyEssentialsV1::make_locale(resolved_prefs.locale_preferences);
@@ -143,15 +141,13 @@ impl CurrencyFormatter {
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>,
     {
         let mut resolved_prefs = prefs;
-        if let Some(ns) = options.numbering_system {
-            if let Ok(val) = ns
-                .as_str()
-                .parse::<icu_locale_core::extensions::unicode::Value>()
-            {
-                if let Ok(nu) = crate::dimension::preferences::NumberingSystem::try_from(&val) {
-                    resolved_prefs.numbering_system = Some(nu);
-                }
-            }
+        if let Some(nu) = options
+            .numbering_system
+            .as_ref()
+            .and_then(|ns| ns.as_str().parse::<icu_locale_core::extensions::unicode::Value>().ok())
+            .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
+        {
+            resolved_prefs.numbering_system = Some(nu);
         }
 
         let locale = CurrencyEssentialsV1::make_locale(resolved_prefs.locale_preferences);
