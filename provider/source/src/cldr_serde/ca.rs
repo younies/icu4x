@@ -195,6 +195,8 @@ pub(crate) struct DateTimeFormats {
     pub(crate) available_formats: AvailableFormats,
     #[serde(rename = "appendItems")]
     pub(crate) append_items: AppendItems,
+    #[serde(rename = "intervalFormats")]
+    pub(crate) interval_formats: Option<IntervalFormats>,
 }
 
 #[derive(PartialEq, Debug, Deserialize, Clone)]
@@ -242,6 +244,14 @@ impl DateTimeFormatsVariant {
 
 #[derive(PartialEq, Clone, Debug, Deserialize)]
 pub(crate) struct AvailableFormats(pub(crate) HashMap<String, String>);
+
+#[derive(PartialEq, Clone, Debug, Deserialize)]
+pub(crate) struct IntervalFormats {
+    #[serde(rename = "intervalFormatFallback")]
+    pub(crate) fallback: String,
+    #[serde(flatten)]
+    pub(crate) patterns: HashMap<String, HashMap<String, String>>,
+}
 
 #[derive(PartialEq, Clone, Debug, Deserialize)]
 pub(crate) struct CyclicNameSets {

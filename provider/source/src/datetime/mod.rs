@@ -23,6 +23,7 @@ use zerovec::ule::VarULE;
 mod available_formats;
 mod day_periods;
 mod names;
+mod range_patterns;
 mod semantic_skeletons;
 use semantic_skeletons::Trio;
 mod week_data;
