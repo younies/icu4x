@@ -2,6 +2,8 @@
 // called LICENSE at the top level of the ICU4X source tree
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
+// TODO: Legacy code. Should be removed after implementing the new implementation of https://hackmd.io/@younies/number_formatter_4x
+
 #[cfg(test)]
 mod tests {
     use icu_locale_core::locale;
@@ -9,7 +11,7 @@ mod tests {
     use writeable::assert_writeable_eq;
 
     use crate::dimension::currency::CurrencyCode;
-    use crate::dimension::currency::long_compact_formatter::LongCompactCurrencyFormatter;
+    use crate::dimension::currency::legacy::long_compact_formatter::LongCompactCurrencyFormatter;
 
     #[test]
     pub fn test_en_us() {

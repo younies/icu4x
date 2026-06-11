@@ -4,15 +4,7 @@
 
 use tinystr::TinyAsciiStr;
 
-pub mod compact_format;
-pub mod compact_formatter;
-pub mod format;
-pub mod formatter;
-pub mod long_compact_format;
-pub mod long_compact_formatter;
-pub mod long_format;
-pub mod long_formatter;
-pub mod options;
+pub mod legacy;
 
 /// A currency code, such as "USD" or "EUR".
 #[derive(Clone, Copy, Debug)]

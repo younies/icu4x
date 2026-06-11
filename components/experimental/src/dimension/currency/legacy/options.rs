@@ -2,13 +2,15 @@
 // called LICENSE at the top level of the ICU4X source tree
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
-//! Options for [`CurrencyFormatter`](crate::dimension::currency::formatter::CurrencyFormatter).
+// TODO: Legacy code. Should be removed after implementing the new implementation of https://hackmd.io/@younies/number_formatter_4x
+
+//! Options for [`CurrencyFormatter`](crate::dimension::currency::legacy::formatter::CurrencyFormatter).
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A collection of configuration options that determine the formatting behavior of
-/// [`CurrencyFormatter`](crate::dimension::currency::formatter::CurrencyFormatter).
+/// [`CurrencyFormatter`](crate::dimension::currency::legacy::formatter::CurrencyFormatter).
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]

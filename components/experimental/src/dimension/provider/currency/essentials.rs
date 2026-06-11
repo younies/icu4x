@@ -12,8 +12,7 @@ use zerovec::{VarZeroVec, ZeroMap};
 
 use icu_pattern::DoublePlaceholderPattern;
 
-use crate::dimension::currency::CurrencyCode;
-use crate::dimension::currency::options::Width;
+
 
 #[cfg(feature = "compiled_data")]
 /// Baked data
@@ -134,48 +133,6 @@ pub struct CurrencyPatternConfig {
 }
 
 impl<'a> CurrencyEssentials<'a> {
-    /// Returns the formatted currency name/symbol,
-    /// the currency pattern for the given width and currency,
-    /// and the pattern selection.
-    pub(crate) fn name_and_pattern(
-        &'a self,
-        width: Width,
-        currency: &'a CurrencyCode,
-    ) -> (
-        &'a str,
-        Option<&'a DoublePlaceholderPattern>,
-        PatternSelection,
-    ) {
-        let config = self
-            .pattern_config_map
-            .get_copied(&currency.0.to_unvalidated())
-            .unwrap_or(self.default_pattern_config);
-
-        let placeholder_val = match width {
-            Width::Short => config.short_placeholder_value,
-            Width::Narrow => config.narrow_placeholder_value,
-        };
-
-        let currency = match placeholder_val {
-            Some(PlaceholderValue::Index(index)) => self.placeholders.get(index.into()),
-            Some(PlaceholderValue::ISO) | None => None,
-        }
-        .unwrap_or(currency.0.as_str());
-
-        let pattern_selection = match width {
-            Width::Short => config.short_pattern_selection,
-            Width::Narrow => config.narrow_pattern_selection,
-        };
-
-        let pattern = match pattern_selection {
-            PatternSelection::Standard => self.standard_pattern(),
-            PatternSelection::StandardAlphaNextToNumber => {
-                self.standard_alpha_next_to_number_pattern()
-            }
-        };
-
-        (currency, pattern, pattern_selection)
-    }
 
     /// Returns the standard pattern.
     pub fn standard_pattern(&self) -> Option<&DoublePlaceholderPattern> {

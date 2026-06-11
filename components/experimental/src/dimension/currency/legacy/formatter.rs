@@ -2,6 +2,8 @@
 // called LICENSE at the top level of the ICU4X source tree
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
+// TODO: Legacy code. Should be removed after implementing the new implementation of https://hackmd.io/@younies/number_formatter_4x
+
 use core::fmt::Display;
 
 use fixed_decimal::Decimal;
@@ -13,8 +15,8 @@ use icu_plurals::PluralRulesPreferences;
 use icu_provider::prelude::*;
 use writeable::Writeable;
 
-use super::super::provider::currency::essentials::CurrencyEssentialsV1;
-use super::CurrencyCode;
+use crate::dimension::provider::currency::essentials::CurrencyEssentialsV1;
+use crate::dimension::currency::CurrencyCode;
 use super::options::CurrencyFormatterOptions;
 use icu_pattern::DoublePlaceholderPattern;
 
@@ -139,7 +141,7 @@ impl CurrencyFormatter {
     ///
     /// # Examples
     /// ```
-    /// use icu::experimental::dimension::currency::formatter::CurrencyFormatter;
+    /// use icu::experimental::dimension::currency::legacy::formatter::CurrencyFormatter;
     /// use icu::experimental::dimension::currency::CurrencyCode;
     /// use icu::locale::locale;
     /// use tinystr::*;
