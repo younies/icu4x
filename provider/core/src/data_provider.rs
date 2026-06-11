@@ -460,6 +460,42 @@ where
     }
 }
 
+/// Load data by trying multiple requests in order, returning the first success.
+///
+/// This is useful when you have a list of fallback identifiers and want to try them
+/// until one succeeds.
+pub fn load_with_fallback<'a, M: DataMarker>(
+    provider: &(impl DataProvider<M> + ?Sized),
+    ids: impl Iterator<Item = DataIdentifierBorrowed<'a>>,
+) -> Result<DataResponse<M>, DataError> {
+    let mut ids = ids.peekable();
+
+    while let Some(id) = ids.next() {
+        if ids.peek().is_some() {
+            if let Some(r) = provider
+                .load(DataRequest {
+                    id,
+                    metadata: {
+                        let mut m = DataRequestMetadata::default();
+                        m.silent = true;
+                        m
+                    },
+                })
+                .allow_identifier_not_found()?
+            {
+                return Ok(r);
+            }
+        } else {
+            return provider.load(DataRequest {
+                id,
+                metadata: DataRequestMetadata::default(),
+            });
+        }
+    }
+
+    Err(DataErrorKind::InvalidRequest.into_error())
+}
+
 #[cfg(test)]
 mod test {
 

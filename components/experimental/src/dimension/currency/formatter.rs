@@ -37,6 +37,24 @@ prefs_convert!(CurrencyFormatterPreferences, DecimalFormatterPreferences, {
 });
 prefs_convert!(CurrencyFormatterPreferences, PluralRulesPreferences);
 
+impl CurrencyFormatterPreferences {
+    fn apply_options(mut self, options: &CurrencyFormatterOptions) -> Self {
+        if let Some(nu) = options
+            .numbering_system
+            .as_ref()
+            .and_then(|ns| {
+                ns.as_str()
+                    .parse::<icu_locale_core::extensions::unicode::Value>()
+                    .ok()
+            })
+            .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
+        {
+            self.numbering_system = Some(nu);
+        }
+        self
+    }
+}
+
 /// A formatter for monetary values.
 ///
 /// [`CurrencyFormatter`] supports:
@@ -78,19 +96,7 @@ impl CurrencyFormatter {
         prefs: CurrencyFormatterPreferences,
         options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
-        let mut resolved_prefs = prefs;
-        if let Some(nu) = options
-            .numbering_system
-            .as_ref()
-            .and_then(|ns| {
-                ns.as_str()
-                    .parse::<icu_locale_core::extensions::unicode::Value>()
-                    .ok()
-            })
-            .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
-        {
-            resolved_prefs.numbering_system = Some(nu);
-        }
+        let resolved_prefs = prefs.apply_options(&options);
 
         let locale = CurrencyEssentialsV1::make_locale(resolved_prefs.locale_preferences);
         let decimal_formatter = DecimalFormatter::try_new(
@@ -101,7 +107,8 @@ impl CurrencyFormatter {
         let req_id = nu_id(&resolved_prefs, &locale);
         let default_id = DataIdentifierBorrowed::for_locale(&locale);
         let ids = req_id.into_iter().chain(core::iter::once(default_id));
-        let essential = load_with_fallback::<CurrencyEssentialsV1>(&crate::provider::Baked, ids)?.payload;
+        let essential =
+            load_with_fallback::<CurrencyEssentialsV1>(&crate::provider::Baked, ids)?.payload;
 
         if essential.get().standard_pattern().is_none() {
             return Err(DataError::custom("missing standard pattern"));
@@ -126,19 +133,7 @@ impl CurrencyFormatter {
             + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>,
     {
-        let mut resolved_prefs = prefs;
-        if let Some(nu) = options
-            .numbering_system
-            .as_ref()
-            .and_then(|ns| {
-                ns.as_str()
-                    .parse::<icu_locale_core::extensions::unicode::Value>()
-                    .ok()
-            })
-            .and_then(|val| crate::dimension::preferences::NumberingSystem::try_from(&val).ok())
-        {
-            resolved_prefs.numbering_system = Some(nu);
-        }
+        let resolved_prefs = prefs.apply_options(&options);
 
         let locale = CurrencyEssentialsV1::make_locale(resolved_prefs.locale_preferences);
         let decimal_formatter = DecimalFormatter::try_new_unstable(
@@ -218,36 +213,4 @@ fn nu_id<'a>(
                 locale,
             )
         })
-}
-
-fn load_with_fallback<'a, M: DataMarker>(
-    provider: &(impl DataProvider<M> + ?Sized),
-    ids: impl Iterator<Item = DataIdentifierBorrowed<'a>>,
-) -> Result<DataResponse<M>, DataError> {
-    let mut ids = ids.peekable();
-
-    while let Some(id) = ids.next() {
-        if ids.peek().is_some() {
-            if let Some(r) = provider
-                .load(DataRequest {
-                    id,
-                    metadata: {
-                        let mut m = DataRequestMetadata::default();
-                        m.silent = true;
-                        m
-                    },
-                })
-                .allow_identifier_not_found()?
-            {
-                return Ok(r);
-            }
-        } else {
-            return provider.load(DataRequest {
-                id,
-                metadata: DataRequestMetadata::default(),
-            });
-        }
-    }
-
-    Err(DataErrorKind::InvalidRequest.into_error())
 }
