@@ -475,10 +475,9 @@ pub fn load_with_fallback<'a, M: DataMarker>(
             if let Some(r) = provider
                 .load(DataRequest {
                     id,
-                    metadata: {
-                        let mut m = DataRequestMetadata::default();
-                        m.silent = true;
-                        m
+                    metadata: DataRequestMetadata {
+                        silent: true,
+                        ..Default::default()
                     },
                 })
                 .allow_identifier_not_found()?
