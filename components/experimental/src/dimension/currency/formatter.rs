@@ -19,7 +19,8 @@ use super::options::CurrencyFormatterOptions;
 use icu_pattern::DoublePlaceholderPattern;
 
 // Fallback pattern: "{1}{0}" (currency followed by number, e.g. "$10")
-const FALLBACK_PATTERN: &DoublePlaceholderPattern = DoublePlaceholderPattern::from_ref_store_unchecked("\x03\x02");
+const FALLBACK_PATTERN: &DoublePlaceholderPattern =
+    DoublePlaceholderPattern::from_ref_store_unchecked("\x03\x02");
 
 extern crate alloc;
 
@@ -167,7 +168,10 @@ impl CurrencyFormatter {
             .get()
             .name_and_pattern(self.options.width, currency_code);
 
-        debug_assert!(pattern.is_some(), "standard pattern should be present due to validation in try_new");
+        debug_assert!(
+            pattern.is_some(),
+            "standard pattern should be present due to validation in try_new"
+        );
         let pattern = pattern.unwrap_or(FALLBACK_PATTERN);
 
         self.decimal_formatter.format_sign(
