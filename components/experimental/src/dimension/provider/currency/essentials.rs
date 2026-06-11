@@ -185,8 +185,7 @@ impl<'a> CurrencyEssentials<'a> {
             self.indices.standard,
             self.patterns.len()
         );
-        self.patterns
-            .get(self.indices.standard as usize)
+        self.patterns.get(self.indices.standard as usize)
     }
 
     /// Returns the standard negative pattern if specified.
