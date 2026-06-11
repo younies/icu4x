@@ -437,12 +437,13 @@ mod test {
     #[test]
     #[ignore] // TODO(#5643)
     fn test_datetime_skeletons() {
-        let skeletons = SourceDataProvider::new_testing()
+        let provider = SourceDataProvider::new_testing();
+        let skeletons = provider
             .get_dates_resource(&langid!("fil").into(), Some(DatagenCalendar::Gregorian))
             .unwrap()
             .datetime_formats
             .available_formats
-            .parse_skeletons();
+            .parse_skeletons(provider.datetime_ascii_preference());
 
         assert_eq!(
             Some(&PluralElements::new(
