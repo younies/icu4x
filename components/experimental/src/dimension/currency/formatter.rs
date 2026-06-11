@@ -16,6 +16,7 @@ use writeable::Writeable;
 use super::super::provider::currency::essentials::CurrencyEssentialsV1;
 use super::CurrencyCode;
 use super::options::CurrencyFormatterOptions;
+use icu_pattern::DoublePlaceholderPattern;
 
 extern crate alloc;
 
@@ -100,7 +101,11 @@ impl CurrencyFormatter {
         let req_id = nu_id(&resolved_prefs, &locale);
         let default_id = DataIdentifierBorrowed::for_locale(&locale);
         let ids = req_id.into_iter().chain(core::iter::once(default_id));
-        let essential = load_with_fallback(&crate::provider::Baked, ids)?.payload;
+        let essential = load_with_fallback::<CurrencyEssentialsV1>(&crate::provider::Baked, ids)?.payload;
+
+        if essential.get().standard_pattern().is_none() {
+            return Err(DataError::custom("missing standard pattern"));
+        }
 
         Ok(Self {
             options,
@@ -144,7 +149,11 @@ impl CurrencyFormatter {
         let req_id = nu_id(&resolved_prefs, &locale);
         let default_id = DataIdentifierBorrowed::for_locale(&locale);
         let ids = req_id.into_iter().chain(core::iter::once(default_id));
-        let essential = load_with_fallback(provider, ids)?.payload;
+        let essential = load_with_fallback::<CurrencyEssentialsV1>(provider, ids)?.payload;
+
+        if essential.get().standard_pattern().is_none() {
+            return Err(DataError::custom("missing standard pattern"));
+        }
 
         Ok(Self {
             options,
@@ -181,6 +190,8 @@ impl CurrencyFormatter {
             .essential
             .get()
             .name_and_pattern(self.options.width, currency_code);
+
+        let pattern = pattern.unwrap_or_else(|| <&DoublePlaceholderPattern>::default());
 
         self.decimal_formatter.format_sign(
             value.sign,
