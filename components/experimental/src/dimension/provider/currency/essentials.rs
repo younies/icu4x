@@ -39,11 +39,11 @@ icu_provider::data_marker!(
 pub struct PatternIndices {
     pub standard: u8,
     pub standard_negative: Option<u8>,
-    pub standard_alpha_next_to_number: u8,
+    pub standard_alpha_next_to_number: Option<u8>,
     pub standard_alpha_next_to_number_negative: Option<u8>,
-    pub accounting_positive: u8,
+    pub accounting_positive: Option<u8>,
     pub accounting_negative: Option<u8>,
-    pub accounting_alpha_next_to_number_positive: u8,
+    pub accounting_alpha_next_to_number_positive: Option<u8>,
     pub accounting_alpha_next_to_number_negative: Option<u8>,
 }
 
@@ -179,9 +179,14 @@ impl<'a> CurrencyEssentials<'a> {
 
     /// Returns the standard pattern.
     pub fn standard_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+        debug_assert!(
+            (self.indices.standard as usize) < self.patterns.len(),
+            "Standard pattern index {} is out of bounds for patterns of length {}",
+            self.indices.standard,
+            self.patterns.len()
+        );
         self.patterns
             .get(self.indices.standard as usize)
-            .or_else(|| self.patterns.get(0))
     }
 
     /// Returns the standard negative pattern if specified.
@@ -192,13 +197,20 @@ impl<'a> CurrencyEssentials<'a> {
     }
 
     /// Returns the `standard_alpha_next_to_number` pattern, falling back to `standard_pattern` if not present.
+    ///
+    /// Fallback hierarchy:
+    /// `standard_alpha_next_to_number` -> `standard`
     pub fn standard_alpha_next_to_number_pattern(&self) -> Option<&DoublePlaceholderPattern> {
-        self.patterns
-            .get(self.indices.standard_alpha_next_to_number as usize)
+        self.indices
+            .standard_alpha_next_to_number
+            .and_then(|idx| self.patterns.get(idx as usize))
             .or_else(|| self.standard_pattern())
     }
 
     /// Returns the `standard_alpha_next_to_number` negative pattern if specified, falling back to standard negative.
+    ///
+    /// Fallback hierarchy:
+    /// `standard_alpha_next_to_number_negative` -> `standard_negative`
     pub fn standard_alpha_next_to_number_negative_pattern(
         &self,
     ) -> Option<&DoublePlaceholderPattern> {
@@ -209,29 +221,44 @@ impl<'a> CurrencyEssentials<'a> {
     }
 
     /// Returns the positive accounting pattern, falling back to `standard_pattern` if not present.
+    ///
+    /// Fallback hierarchy:
+    /// `accounting_positive` -> `standard`
     pub fn accounting_positive_pattern(&self) -> Option<&DoublePlaceholderPattern> {
-        self.patterns
-            .get(self.indices.accounting_positive as usize)
+        self.indices
+            .accounting_positive
+            .and_then(|idx| self.patterns.get(idx as usize))
             .or_else(|| self.standard_pattern())
     }
 
-    /// Returns the negative accounting pattern if present.
+    /// Returns the negative accounting pattern if present, falling back to standard negative.
+    ///
+    /// Fallback hierarchy:
+    /// `accounting_negative` -> `standard_negative`
     pub fn accounting_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .accounting_negative
             .and_then(|idx| self.patterns.get(idx as usize))
+            .or_else(|| self.standard_negative_pattern())
     }
 
     /// Returns the positive `accounting_alpha_next_to_number` pattern, falling back to accounting or standard.
+    ///
+    /// Fallback hierarchy:
+    /// `accounting_alpha_next_to_number_positive` -> `accounting_positive` -> `standard`
     pub fn accounting_alpha_next_to_number_positive_pattern(
         &self,
     ) -> Option<&DoublePlaceholderPattern> {
-        self.patterns
-            .get(self.indices.accounting_alpha_next_to_number_positive as usize)
+        self.indices
+            .accounting_alpha_next_to_number_positive
+            .and_then(|idx| self.patterns.get(idx as usize))
             .or_else(|| self.accounting_positive_pattern())
     }
 
     /// Returns the negative `accounting_alpha_next_to_number` pattern, falling back to `accounting_negative_pattern`.
+    ///
+    /// Fallback hierarchy:
+    /// `accounting_alpha_next_to_number_negative` -> `accounting_negative` -> `standard_negative`
     pub fn accounting_alpha_next_to_number_negative_pattern(
         &self,
     ) -> Option<&DoublePlaceholderPattern> {
