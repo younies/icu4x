@@ -97,33 +97,10 @@ impl CurrencyFormatter {
             DecimalFormatterOptions::default(),
         )?;
 
-        let req_numsys = resolved_prefs.numbering_system.as_ref().map(|s| s.as_str());
-        let essential = req_numsys
-            .and_then(|nu| {
-                crate::provider::Baked
-                    .load(DataRequest {
-                        id: DataIdentifierBorrowed::for_marker_attributes_and_locale(
-                            DataMarkerAttributes::from_str_or_panic(nu),
-                            &locale,
-                        ),
-                        metadata: {
-                            let mut m = DataRequestMetadata::default();
-                            m.silent = true;
-                            m
-                        },
-                    })
-                    .allow_identifier_not_found()
-                    .ok()
-                    .flatten()
-            })
-            .map(Ok)
-            .unwrap_or_else(|| {
-                crate::provider::Baked.load(DataRequest {
-                    id: DataIdentifierBorrowed::for_locale(&locale),
-                    ..Default::default()
-                })
-            })?
-            .payload;
+        let req_id = nu_id(&resolved_prefs, &locale);
+        let default_id = DataIdentifierBorrowed::for_locale(&locale);
+        let ids = req_id.into_iter().chain(core::iter::once(default_id));
+        let essential = load_with_fallback(&crate::provider::Baked, ids)?.payload;
 
         Ok(Self {
             options,
@@ -164,33 +141,10 @@ impl CurrencyFormatter {
             (&resolved_prefs).into(),
             DecimalFormatterOptions::default(),
         )?;
-        let req_numsys = resolved_prefs.numbering_system.as_ref().map(|s| s.as_str());
-        let essential = req_numsys
-            .and_then(|nu| {
-                provider
-                    .load(DataRequest {
-                        id: DataIdentifierBorrowed::for_marker_attributes_and_locale(
-                            DataMarkerAttributes::from_str_or_panic(nu),
-                            &locale,
-                        ),
-                        metadata: {
-                            let mut m = DataRequestMetadata::default();
-                            m.silent = true;
-                            m
-                        },
-                    })
-                    .allow_identifier_not_found()
-                    .ok()
-                    .flatten()
-            })
-            .map(Ok)
-            .unwrap_or_else(|| {
-                provider.load(DataRequest {
-                    id: DataIdentifierBorrowed::for_locale(&locale),
-                    ..Default::default()
-                })
-            })?
-            .payload;
+        let req_id = nu_id(&resolved_prefs, &locale);
+        let default_id = DataIdentifierBorrowed::for_locale(&locale);
+        let ids = req_id.into_iter().chain(core::iter::once(default_id));
+        let essential = load_with_fallback(provider, ids)?.payload;
 
         Ok(Self {
             options,
@@ -237,4 +191,52 @@ impl CurrencyFormatter {
             )),
         )
     }
+}
+
+fn nu_id<'a>(
+    prefs: &'a CurrencyFormatterPreferences,
+    locale: &'a DataLocale,
+) -> Option<DataIdentifierBorrowed<'a>> {
+    prefs
+        .numbering_system
+        .as_ref()
+        .map(|s| s.as_str())
+        .map(|nu| {
+            DataIdentifierBorrowed::for_marker_attributes_and_locale(
+                DataMarkerAttributes::from_str_or_panic(nu),
+                locale,
+            )
+        })
+}
+
+fn load_with_fallback<'a, M: DataMarker>(
+    provider: &(impl DataProvider<M> + ?Sized),
+    ids: impl Iterator<Item = DataIdentifierBorrowed<'a>>,
+) -> Result<DataResponse<M>, DataError> {
+    let mut ids = ids.peekable();
+
+    while let Some(id) = ids.next() {
+        if ids.peek().is_some() {
+            if let Some(r) = provider
+                .load(DataRequest {
+                    id,
+                    metadata: {
+                        let mut m = DataRequestMetadata::default();
+                        m.silent = true;
+                        m
+                    },
+                })
+                .allow_identifier_not_found()?
+            {
+                return Ok(r);
+            }
+        } else {
+            return provider.load(DataRequest {
+                id,
+                metadata: DataRequestMetadata::default(),
+            });
+        }
+    }
+
+    Err(DataErrorKind::InvalidRequest.into_error())
 }
