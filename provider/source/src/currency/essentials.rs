@@ -355,10 +355,9 @@ fn extract_currency_essentials<'data>(
         Some(p) => add_pattern(create_negative_pattern(p)?),
         None => None,
     };
-    let accounting_pos_idx =
-        add_pattern(accounting.map(create_positive_pattern).transpose()?)
-            // Fallback: accounting_positive -> standard
-            .unwrap_or(standard_idx);
+    let accounting_pos_idx = add_pattern(accounting.map(create_positive_pattern).transpose()?)
+        // Fallback: accounting_positive -> standard
+        .unwrap_or(standard_idx);
     let accounting_neg_idx = match accounting {
         Some(p) => add_pattern(create_negative_pattern(p)?),
         None => None,
