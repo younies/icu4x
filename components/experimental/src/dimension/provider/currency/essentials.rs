@@ -12,8 +12,6 @@ use zerovec::{VarZeroVec, ZeroMap};
 
 use icu_pattern::DoublePlaceholderPattern;
 
-
-
 #[cfg(feature = "compiled_data")]
 /// Baked data
 ///
@@ -133,7 +131,6 @@ pub struct CurrencyPatternConfig {
 }
 
 impl<'a> CurrencyEssentials<'a> {
-
     /// Returns the standard pattern.
     pub fn standard_pattern(&self) -> Option<&DoublePlaceholderPattern> {
         self.patterns

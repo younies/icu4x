@@ -16,8 +16,8 @@ use crate::dimension::provider::currency::{
     extended::CurrencyExtendedDataV1, patterns::CurrencyPatternsDataV1,
 };
 
-use crate::dimension::currency::CurrencyCode;
 use super::formatter::CurrencyFormatterPreferences;
+use crate::dimension::currency::CurrencyCode;
 
 extern crate alloc;
 
