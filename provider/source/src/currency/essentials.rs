@@ -348,12 +348,17 @@ fn extract_currency_essentials<'data>(
         standard_alpha_next_to_number
             .map(create_positive_pattern)
             .transpose()?,
-    );
+    )
+    // Fallback: standard_alpha_next_to_number -> standard
+    .unwrap_or(standard_idx);
     let standard_alpha_neg_idx = match standard_alpha_next_to_number {
         Some(p) => add_pattern(create_negative_pattern(p)?),
         None => None,
     };
-    let accounting_pos_idx = add_pattern(accounting.map(create_positive_pattern).transpose()?);
+    let accounting_pos_idx =
+        add_pattern(accounting.map(create_positive_pattern).transpose()?)
+            // Fallback: accounting_positive -> standard
+            .unwrap_or(standard_idx);
     let accounting_neg_idx = match accounting {
         Some(p) => add_pattern(create_negative_pattern(p)?),
         None => None,
@@ -362,7 +367,9 @@ fn extract_currency_essentials<'data>(
         accounting_alpha_next_to_number
             .map(create_positive_pattern)
             .transpose()?,
-    );
+    )
+    // Fallback: accounting_alpha_next_to_number_positive -> standard_alpha_next_to_number
+    .unwrap_or(standard_alpha_idx);
     let accounting_alpha_neg_idx = match accounting_alpha_next_to_number {
         Some(p) => add_pattern(create_negative_pattern(p)?),
         None => None,

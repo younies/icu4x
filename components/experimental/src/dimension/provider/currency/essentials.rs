@@ -37,13 +37,21 @@ icu_provider::data_marker!(
 #[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::essentials))]
 // TODO: Pack these 8 distinct index fields into a single 32-bit integer bitfield (3 bits per index) to minimize stack size.
 pub struct PatternIndices {
+    /// Standard pattern.
     pub standard: u8,
+    /// Standard negative pattern. Falls back to formatting negative number with standard pattern at runtime if missing.
     pub standard_negative: Option<u8>,
-    pub standard_alpha_next_to_number: Option<u8>,
+    /// Standard alpha next to number pattern. Falls back to `standard` at datagen time if missing.
+    pub standard_alpha_next_to_number: u8,
+    /// Standard alpha next to number negative pattern. Falls back to `standard_negative` at runtime if missing.
     pub standard_alpha_next_to_number_negative: Option<u8>,
-    pub accounting_positive: Option<u8>,
+    /// Positive accounting pattern. Falls back to `standard` at datagen time if missing.
+    pub accounting_positive: u8,
+    /// Negative accounting pattern. Falls back to `standard_negative` at runtime if missing.
     pub accounting_negative: Option<u8>,
-    pub accounting_alpha_next_to_number_positive: Option<u8>,
+    /// Positive accounting alpha next to number pattern. Falls back to `accounting_positive` at datagen time if missing.
+    pub accounting_alpha_next_to_number_positive: u8,
+    /// Negative accounting alpha next to number pattern. Falls back to `accounting_negative` at runtime if missing.
     pub accounting_alpha_next_to_number_negative: Option<u8>,
 }
 
@@ -133,6 +141,14 @@ pub struct CurrencyPatternConfig {
     pub narrow_placeholder_value: Option<PlaceholderValue>,
 }
 
+// Fallback pattern: "{1}{0}" (currency followed by number, e.g. "$10")
+//
+// Even though the baked data handles the fallback at data generation time,
+// we have the fallback here for users feeding their own data without
+// handling the fallback logic in their data generation.
+const FALLBACK_PATTERN: &DoublePlaceholderPattern =
+    DoublePlaceholderPattern::from_ref_store_unchecked("\x03\x02");
+
 impl<'a> CurrencyEssentials<'a> {
     /// Returns the formatted currency name/symbol,
     /// the currency pattern for the given width and currency,
@@ -141,11 +157,7 @@ impl<'a> CurrencyEssentials<'a> {
         &'a self,
         width: Width,
         currency: &'a CurrencyCode,
-    ) -> (
-        &'a str,
-        Option<&'a DoublePlaceholderPattern>,
-        PatternSelection,
-    ) {
+    ) -> (&'a str, &'a DoublePlaceholderPattern, PatternSelection) {
         let config = self
             .pattern_config_map
             .get_copied(&currency.0.to_unvalidated())
@@ -178,14 +190,20 @@ impl<'a> CurrencyEssentials<'a> {
     }
 
     /// Returns the standard pattern.
-    pub fn standard_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    ///
+    /// Even though the baked data handles the fallback at data generation time,
+    /// we have the fallback here for users feeding their own data without
+    /// handling the fallback logic in their data generation.
+    pub fn standard_pattern(&self) -> &DoublePlaceholderPattern {
         debug_assert!(
             (self.indices.standard as usize) < self.patterns.len(),
             "Standard pattern index {} is out of bounds for patterns of length {}",
             self.indices.standard,
             self.patterns.len()
         );
-        self.patterns.get(self.indices.standard as usize)
+        self.patterns
+            .get(self.indices.standard as usize)
+            .unwrap_or(FALLBACK_PATTERN)
     }
 
     /// Returns the standard negative pattern if specified.
@@ -195,15 +213,18 @@ impl<'a> CurrencyEssentials<'a> {
             .and_then(|idx| self.patterns.get(idx as usize))
     }
 
-    /// Returns the `standard_alpha_next_to_number` pattern, falling back to `standard_pattern` if not present.
+    /// Returns the `standard_alpha_next_to_number` pattern.
     ///
     /// Fallback hierarchy:
     /// `standard_alpha_next_to_number` -> `standard`
-    pub fn standard_alpha_next_to_number_pattern(&self) -> Option<&DoublePlaceholderPattern> {
-        self.indices
-            .standard_alpha_next_to_number
-            .and_then(|idx| self.patterns.get(idx as usize))
-            .or_else(|| self.standard_pattern())
+    ///
+    /// Even though the baked data handles the fallback at data generation time,
+    /// we have the fallback here for users feeding their own data without
+    /// handling the fallback logic in their data generation.
+    pub fn standard_alpha_next_to_number_pattern(&self) -> &DoublePlaceholderPattern {
+        self.patterns
+            .get(self.indices.standard_alpha_next_to_number as usize)
+            .unwrap_or_else(|| self.standard_pattern())
     }
 
     /// Returns the `standard_alpha_next_to_number` negative pattern if specified, falling back to standard negative.
@@ -219,15 +240,18 @@ impl<'a> CurrencyEssentials<'a> {
             .or_else(|| self.standard_negative_pattern())
     }
 
-    /// Returns the positive accounting pattern, falling back to `standard_pattern` if not present.
+    /// Returns the positive accounting pattern.
     ///
     /// Fallback hierarchy:
     /// `accounting_positive` -> `standard`
-    pub fn accounting_positive_pattern(&self) -> Option<&DoublePlaceholderPattern> {
-        self.indices
-            .accounting_positive
-            .and_then(|idx| self.patterns.get(idx as usize))
-            .or_else(|| self.standard_pattern())
+    ///
+    /// Even though the baked data handles the fallback at data generation time,
+    /// we have the fallback here for users feeding their own data without
+    /// handling the fallback logic in their data generation.
+    pub fn accounting_positive_pattern(&self) -> &DoublePlaceholderPattern {
+        self.patterns
+            .get(self.indices.accounting_positive as usize)
+            .unwrap_or_else(|| self.standard_pattern())
     }
 
     /// Returns the negative accounting pattern if present, falling back to standard negative.
@@ -241,17 +265,18 @@ impl<'a> CurrencyEssentials<'a> {
             .or_else(|| self.standard_negative_pattern())
     }
 
-    /// Returns the positive `accounting_alpha_next_to_number` pattern, falling back to accounting or standard.
+    /// Returns the positive `accounting_alpha_next_to_number` pattern.
     ///
     /// Fallback hierarchy:
-    /// `accounting_alpha_next_to_number_positive` -> `accounting_positive` -> `standard`
-    pub fn accounting_alpha_next_to_number_positive_pattern(
-        &self,
-    ) -> Option<&DoublePlaceholderPattern> {
-        self.indices
-            .accounting_alpha_next_to_number_positive
-            .and_then(|idx| self.patterns.get(idx as usize))
-            .or_else(|| self.accounting_positive_pattern())
+    /// `accounting_alpha_next_to_number_positive` -> `standard_alpha_next_to_number` -> `standard`
+    ///
+    /// Even though the baked data handles the fallback at data generation time,
+    /// we have the fallback here for users feeding their own data without
+    /// handling the fallback logic in their data generation.
+    pub fn accounting_alpha_next_to_number_positive_pattern(&self) -> &DoublePlaceholderPattern {
+        self.patterns
+            .get(self.indices.accounting_alpha_next_to_number_positive as usize)
+            .unwrap_or_else(|| self.standard_alpha_next_to_number_pattern())
     }
 
     /// Returns the negative `accounting_alpha_next_to_number` pattern, falling back to `accounting_negative_pattern`.
