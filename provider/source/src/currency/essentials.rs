@@ -450,10 +450,7 @@ fn test_basic() {
 
     let en_payload = en.payload.get();
 
-    assert_writeable_eq!(
-        en_payload.standard_pattern().interpolate((3, "$")),
-        "$3"
-    );
+    assert_writeable_eq!(en_payload.standard_pattern().interpolate((3, "$")), "$3");
     assert_writeable_eq!(
         en_payload
             .standard_alpha_next_to_number_pattern()
@@ -513,9 +510,7 @@ fn test_basic() {
 
     let ar_eg_payload = ar_eg.payload.get();
     assert_writeable_eq!(
-        ar_eg_payload
-            .standard_pattern()
-            .interpolate((3, "$")),
+        ar_eg_payload.standard_pattern().interpolate((3, "$")),
         "\u{200f}3\u{a0}$"
     );
 
