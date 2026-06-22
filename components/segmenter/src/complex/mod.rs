@@ -216,7 +216,7 @@ impl<'data> ComplexPayloadsBorrowed<'data> {
         let mut offset = 0;
         for (slice, lang) in LanguageIterator::new(input) {
             match self.select(lang) {
-                Some(d) => result.extend(d.segment_str(input, self.grapheme, offset)),
+                Some(d) => result.extend(d.segment_str(slice, self.grapheme, offset)),
                 None => result.push(offset + slice.len()),
             }
             offset += slice.len();
@@ -229,7 +229,7 @@ impl<'data> ComplexPayloadsBorrowed<'data> {
         let mut offset = 0;
         for (slice, lang) in LanguageIteratorUtf16::new(input) {
             match self.select(lang) {
-                Some(d) => result.extend(d.segment_utf16(input, self.grapheme, offset)),
+                Some(d) => result.extend(d.segment_utf16(slice, self.grapheme, offset)),
                 None => result.push(offset + slice.len()),
             }
             offset += slice.len();
@@ -464,26 +464,73 @@ fn try_load_static<M: DataMarker, P: DataProvider<M> + ?Sized>(
 mod tests {
     use super::*;
 
-    #[test]
-    fn thai_word_break() {
-        const TEST_STR: &str = "ภาษาไทยภาษาไทย";
-        let utf16: Vec<u16> = TEST_STR.encode_utf16().collect();
+    #[track_caller]
+    fn check_complex(s: &str, expected: &[&str], segmenter: ComplexPayloadsBorrowed<'_>) {
+        use itertools::Itertools;
 
+        let segments = [0]
+            .into_iter()
+            .chain(segmenter.complex_language_segment_str(s))
+            .tuple_windows()
+            .map(|(a, b)| &s[a..b])
+            .collect::<Vec<_>>();
+        assert_eq!(segments, expected, "{s}");
+
+        // let segments = segmenter
+        //     .segment_utf8(s.as_bytes())
+        //     .tuple_windows()
+        //     .map(|(a, b)| &s[a..b])
+        //     .collect::<Vec<_>>();
+        // assert_eq!(segments, expected, "{s}");
+
+        let utf16: Vec<u16> = s.encode_utf16().collect();
+        let expected = expected
+            .iter()
+            .copied()
+            .map(|s| s.encode_utf16().collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        let iter = [0]
+            .into_iter()
+            .chain(segmenter.complex_language_segment_utf16(&utf16))
+            .tuple_windows()
+            .map(|(a, b)| &utf16[a..b])
+            .collect::<Vec<_>>();
+        assert_eq!(iter, expected, "{s}");
+    }
+
+    #[test]
+    fn thai() {
         let mut lstm = ComplexPayloadsBorrowed::new();
         lstm.with_southeast_asian_lstms();
         let mut dict = ComplexPayloadsBorrowed::new();
         dict.with_southeast_asian_dictionaries();
 
-        assert_eq!(
-            lstm.complex_language_segment_str(TEST_STR),
-            [12, 21, 33, 42]
-        );
-        assert_eq!(lstm.complex_language_segment_utf16(&utf16), [4, 7, 11, 14]);
+        check_complex("ภาษาไทยภาษาไทย", &["ภาษา", "ไทย", "ภาษา", "ไทย"], lstm);
+        check_complex("ภาษาไทยภาษาไทย", &["ภาษา", "ไทย", "ภาษา", "ไทย"], dict);
+    }
 
-        assert_eq!(
-            dict.complex_language_segment_str(TEST_STR),
-            [12, 21, 33, 42]
+    #[test]
+    fn mixed() {
+        let mut lstm = ComplexPayloadsBorrowed::new();
+        lstm.with_southeast_asian_lstms();
+        lstm.with_japanese_dictionary();
+
+        let mut dict = ComplexPayloadsBorrowed::new();
+        dict.with_southeast_asian_dictionaries();
+        dict.with_japanese_dictionary();
+
+        check_complex("ภาษาไทย龟山岛", &["ภาษา", "ไทย", "龟山岛"], lstm);
+        check_complex("ภาษาไทย龟山岛", &["ภาษา", "ไทย", "龟山岛"], dict);
+
+        check_complex(
+            "こんにちは世界ภาษาไทย",
+            &["こんにちは", "世界", "ภาษา", "ไทย"],
+            lstm,
         );
-        assert_eq!(dict.complex_language_segment_utf16(&utf16), [4, 7, 11, 14]);
+        check_complex(
+            "こんにちは世界ภาษาไทย",
+            &["こんにちは", "世界", "ภาษา", "ไทย"],
+            dict,
+        );
     }
 }
