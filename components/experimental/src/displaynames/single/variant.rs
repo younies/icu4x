@@ -26,7 +26,7 @@ use icu_provider::prelude::*;
 /// ```
 #[derive(Debug)]
 pub struct VariantDisplayNameOwned {
-    payload: DataPayload<LocaleNamesVariantMediumV1>,
+    pub(crate) payload: DataPayload<LocaleNamesVariantMediumV1>,
 }
 
 impl VariantDisplayNameOwned {
