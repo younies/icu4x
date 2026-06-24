@@ -191,9 +191,9 @@ impl<'a> CurrencyEssentials<'a> {
 
     /// Returns the standard pattern.
     ///
-    /// Even though the baked data handles the fallback at data generation time,
-    /// we have the fallback here for users feeding their own data without
-    /// handling the fallback logic in their data generation.
+    /// If the standard pattern is missing (which should only happen in corrupt
+    /// or incomplete custom data), this returns a default safety pattern `"{1}{0}"`.
+    /// Note that this is a safety default, not a CLDR-defined fallback.
     pub fn standard_pattern(&self) -> &DoublePlaceholderPattern {
         debug_assert!(
             (self.indices.standard as usize) < self.patterns.len(),
