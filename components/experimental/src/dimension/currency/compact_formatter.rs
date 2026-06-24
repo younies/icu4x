@@ -229,6 +229,7 @@ impl CompactCurrencyFormatter {
             .get()
             .get_pattern_and_significand(&value.absolute, &self.plural_rules);
 
+        // TODO: Apply the negative or accounting patterns with handling for missing negative patterns.
         self.decimal_formatter.format_sign(
             value.sign,
             pattern.interpolate((

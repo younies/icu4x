@@ -155,6 +155,7 @@ impl CurrencyFormatter {
             .get()
             .name_and_pattern(self.options.width, currency_code);
 
+        // TODO: Apply the negative or accounting patterns with handling for missing negative patterns.
         self.decimal_formatter.format_sign(
             value.sign,
             pattern.interpolate((
