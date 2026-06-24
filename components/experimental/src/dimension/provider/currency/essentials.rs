@@ -195,15 +195,18 @@ impl<'a> CurrencyEssentials<'a> {
     /// or incomplete custom data), this returns a default safety pattern `"{1}{0}"`.
     /// Note that this is a safety default, not a CLDR-defined fallback.
     pub fn standard_pattern(&self) -> &DoublePlaceholderPattern {
-        debug_assert!(
-            (self.indices.standard as usize) < self.patterns.len(),
-            "Standard pattern index {} is out of bounds for patterns of length {}",
-            self.indices.standard,
-            self.patterns.len()
-        );
         self.patterns
             .get(self.indices.standard as usize)
-            .unwrap_or(FALLBACK_PATTERN)
+            .unwrap_or_else(|| {
+                debug_assert!(
+                    false,
+                    "Standard pattern index {} is out of bounds for patterns of length {}",
+                    self.indices.standard,
+                    self.patterns.len()
+                );
+                // GIGO
+                FALLBACK_PATTERN
+            })
     }
 
     /// Returns the standard negative pattern if specified.
