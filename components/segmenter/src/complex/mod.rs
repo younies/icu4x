@@ -19,9 +19,6 @@ mod lstm;
 #[cfg(feature = "lstm")]
 use lstm::*;
 
-#[cfg(feature = "unstable")]
-pub(crate) use language::{Language, get_language};
-
 #[derive(Debug)]
 pub struct ComplexIterator<'data, 's, R: RuleBreakType>(ComplexIteratorInner<'data, 's, R>, usize);
 
@@ -207,7 +204,7 @@ impl<'data> ComplexPayloadsBorrowed<'data> {
                 ERR.with_display_context("ja");
                 None
             }),
-            Language::Unknown => None,
+            Language::Other => None,
         }
     }
 
