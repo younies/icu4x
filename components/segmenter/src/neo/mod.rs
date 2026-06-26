@@ -6,7 +6,7 @@
 
 use crate::complex::ComplexIterator;
 use crate::provider::{
-    Acceptance, Language, SegmenterStateMachine, SegmenterStateMachineOverride, Symbol,
+    Acceptance, ComplexScript, SegmenterStateMachine, SegmenterStateMachineOverride, Symbol,
 };
 use crate::scaffold::RuleBreakType;
 use smallvec::SmallVec;
@@ -24,16 +24,16 @@ pub(crate) trait ComplexHandler<Y: RuleBreakType> {
     const BREAK_STATUS: u8;
     const BREAK_AT_BOUNDARIES: bool;
     type Cache: smallvec::Array<Item = usize>;
-    type Data<'s>: core::fmt::Debug;
-    type LanguageData<'s>: core::fmt::Debug;
+    type ComplexPayloads<'s>: core::fmt::Debug;
+    type ComplexPayload<'s>: core::fmt::Debug;
 
-    fn select_complex<'data>(
-        data: &Self::Data<'data>,
-        language: Language,
-    ) -> Option<Self::LanguageData<'data>>;
+    fn select<'data>(
+        complex_payloads: &Self::ComplexPayloads<'data>,
+        script: ComplexScript,
+    ) -> Option<Self::ComplexPayload<'data>>;
 
     fn handle<'data, 's>(
-        data: &Self::LanguageData<'data>,
+        complex_payload: &Self::ComplexPayload<'data>,
         iter: &Y::IterAttr<'s>,
         past_complex: &Y::IterAttr<'s>,
     ) -> ComplexIterator<'data, 's, Y>;
@@ -45,22 +45,22 @@ impl<Y: RuleBreakType> ComplexHandler<Y> for NoComplexHandler {
     const BREAK_STATUS: u8 = 0;
     const BREAK_AT_BOUNDARIES: bool = false;
     type Cache = [usize; 1];
-    type Data<'s> = core::convert::Infallible;
-    type LanguageData<'s> = core::convert::Infallible;
+    type ComplexPayloads<'s> = core::convert::Infallible;
+    type ComplexPayload<'s> = core::convert::Infallible;
 
-    fn select_complex<'data>(
-        &data: &Self::Data<'data>,
-        _: Language,
-    ) -> Option<Self::LanguageData<'data>> {
+    fn select<'data>(
+        &data: &Self::ComplexPayloads<'data>,
+        _: ComplexScript,
+    ) -> Option<Self::ComplexPayload<'data>> {
         match data {}
     }
 
     fn handle<'data, 's>(
-        &data: &Self::LanguageData<'data>,
+        &complex_payload: &Self::ComplexPayload<'data>,
         _: &Y::IterAttr<'s>,
         _: &Y::IterAttr<'s>,
     ) -> ComplexIterator<'data, 's, Y> {
-        match data {}
+        match complex_payload {}
     }
 }
 
@@ -79,13 +79,13 @@ impl<Y: RuleBreakType> ComplexHandler<Y> for NoComplexHandler {
 #[derive(Debug)]
 pub(crate) struct RuleBreakIterator<'data, 's, Y: RuleBreakType, C: ComplexHandler<Y> + ?Sized> {
     data: &'data SegmenterStateMachine<'data>,
-    pseudo_symbol_map: &'data zerovec::ZeroVec<'data, (Symbol, Language)>,
+    pseudo_symbol_map: &'data zerovec::ZeroVec<'data, (Symbol, ComplexScript)>,
     // We use `IntoIter` so that we can pop from the front in O(1) time.
     cache: smallvec::IntoIter<C::Cache>,
     lookahead_positions: SmallVec<[Option<Y::IterAttr<'s>>; 1]>,
     remaining_input: Y::IterAttr<'s>,
     last_accepting_status: u8,
-    complex: Option<C::Data<'data>>,
+    complex: Option<C::ComplexPayloads<'data>>,
 }
 
 #[test]
@@ -107,7 +107,7 @@ impl<'data, 's, Y: RuleBreakType, C: ComplexHandler<Y>> RuleBreakIterator<'data,
         input: Y::IterAttr<'s>,
         data: &'data SegmenterStateMachine<'data>,
         tailoring: Option<&'data SegmenterStateMachineOverride<'data>>,
-        complex: Option<C::Data<'data>>,
+        complex: Option<C::ComplexPayloads<'data>>,
     ) -> Self
     where
         Y: RuleBreakType,
@@ -151,15 +151,15 @@ impl<'s, Y: RuleBreakType, C: ComplexHandler<Y>> Iterator for RuleBreakIterator<
         let mut complex_state = None;
 
         (self.remaining_input, self.last_accepting_status) = loop {
-            let (symbol, language) = if let Some((_, next)) = iter.clone().next() {
+            let (symbol, complex_script) = if let Some((_, next)) = iter.clone().next() {
                 self.symbol(next.into())
             } else {
-                (SegmenterStateMachine::EOT_SYMBOL, Language::Other)
+                (SegmenterStateMachine::EOT_SYMBOL, ComplexScript::None)
             };
 
             if complex_state.is_none()
-                && let Some(complex_data) = self.complex.as_ref()
-                && let Some(complex_language_data) = C::select_complex(complex_data, language)
+                && let Some(complex_payloads) = self.complex.as_ref()
+                && let Some(complex_payload) = C::select(complex_payloads, complex_script)
             {
                 let mut past_complex = iter.clone();
                 let mut last_complex = past_complex.clone();
@@ -167,13 +167,13 @@ impl<'s, Y: RuleBreakType, C: ComplexHandler<Y>> Iterator for RuleBreakIterator<
                 while past_complex
                     .clone()
                     .next()
-                    .is_some_and(|(_, cp)| self.symbol(cp.into()).1 == language)
+                    .is_some_and(|(_, cp)| self.symbol(cp.into()).1 == complex_script)
                 {
                     past_complex.next();
                     last_complex.next();
                 }
 
-                let complex_breaks = C::handle(&complex_language_data, &iter, &past_complex);
+                let complex_breaks = C::handle(&complex_payload, &iter, &past_complex);
                 self.cache = complex_breaks.collect::<SmallVec<_>>().into_iter();
 
                 if C::BREAK_AT_BOUNDARIES {
@@ -259,14 +259,14 @@ impl<'s, Y: RuleBreakType, C: ComplexHandler<Y>> Iterator for RuleBreakIterator<
 }
 
 impl<'data, 's, Y: RuleBreakType, C: ComplexHandler<Y>> RuleBreakIterator<'data, 's, Y, C> {
-    fn symbol(&self, cp: u32) -> (Symbol, Language) {
+    fn symbol(&self, cp: u32) -> (Symbol, ComplexScript) {
         let pseudo_symbol = self.data.symbols.get32(cp);
         if let Some(i) = pseudo_symbol.checked_sub(self.data.pseudo_symbol_shift) {
             self.pseudo_symbol_map
                 .get(i as usize)
-                .unwrap_or((pseudo_symbol, Language::Other))
+                .unwrap_or((pseudo_symbol, ComplexScript::None))
         } else {
-            (pseudo_symbol, Language::Other)
+            (pseudo_symbol, ComplexScript::None)
         }
     }
 }
