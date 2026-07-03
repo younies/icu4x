@@ -10,9 +10,9 @@ mod tests {
     use writeable::assert_writeable_eq;
 
     use crate::dimension::currency::{
+        CurrencyCode,
         formatter::{CurrencyFormatter, CurrencyFormatterPreferences},
         options::{CurrencyFormatterOptions, CurrencyUsage},
-        CurrencyCode,
     };
 
     #[test]
@@ -42,10 +42,7 @@ mod tests {
             "$123.00"
         );
         let value_4_decimals = "123.4567".parse().unwrap();
-        assert_writeable_eq!(
-            fmt_short.format_fixed_decimal(&value_4_decimals),
-            "$123.46"
-        );
+        assert_writeable_eq!(fmt_short.format_fixed_decimal(&value_4_decimals), "$123.46");
 
         // Narrow
         let fmt_narrow =
@@ -373,5 +370,39 @@ mod tests {
             CurrencyFormatter::try_new_compact_short(prefs, Default::default(), &currency_code)
                 .unwrap();
         assert_writeable_eq!(fmt_short.format_fixed_decimal(&value), "-$12K");
+    }
+
+    #[test]
+    pub fn test_accounting_formatting() {
+        let prefs: CurrencyFormatterPreferences = locale!("en").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let value = "-12345.67".parse().unwrap();
+
+        let fmt_accounting = CurrencyFormatter::try_new_short(
+            prefs,
+            CurrencyFormatterOptions {
+                usage: CurrencyUsage::Accounting,
+            },
+            &currency_code,
+        )
+        .unwrap();
+        assert_writeable_eq!(fmt_accounting.format_fixed_decimal(&value), "($12,345.67)");
+    }
+
+    #[test]
+    pub fn test_compact_accounting_formatting() {
+        let prefs: CurrencyFormatterPreferences = locale!("en").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let value = "-12345.67".parse().unwrap();
+
+        let fmt_accounting = CurrencyFormatter::try_new_compact_short(
+            prefs,
+            CurrencyFormatterOptions {
+                usage: CurrencyUsage::Accounting,
+            },
+            &currency_code,
+        )
+        .unwrap();
+        assert_writeable_eq!(fmt_accounting.format_fixed_decimal(&value), "($12K)");
     }
 }

@@ -27,4 +27,6 @@ pub enum CurrencyUsage {
     Standard,
     /// Cash currency formatting (may use different rounding).
     Cash,
+    /// Accounting currency formatting (may use different patterns, e.g. parentheses for negative values).
+    Accounting,
 }

@@ -11,8 +11,8 @@ use super::super::provider::currency::{
     patterns::CurrencyPatternsDataV1,
     symbols::CurrencySymbolsV1,
 };
-use super::options::{CurrencyFormatterOptions, CurrencyUsage};
 use super::CurrencyCode;
+use super::options::{CurrencyFormatterOptions, CurrencyUsage};
 use fixed_decimal::{
     Decimal as FixedDecimal, RoundingIncrement, Sign, SignedRoundingMode, UnsignedRoundingMode,
 };
@@ -123,7 +123,6 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 currency,
             },
         };
-
         let fractions = crate::provider::Baked.load(Default::default())?.payload;
 
         Ok(Self {
@@ -176,7 +175,6 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 currency,
             },
         };
-
         let fractions = provider.load(Default::default())?.payload;
 
         Ok(Self {
@@ -523,8 +521,18 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 essential,
                 currency,
             } => {
-                let pos_pattern = essential.get().get_positive(true, true);
-                let neg_pattern = essential.get().get_negative(true, true);
+                let is_accounting = self.options.usage == CurrencyUsage::Accounting;
+                let (pos_pattern, neg_pattern) = if is_accounting {
+                    (
+                        essential.get().get_positive_accounting(true, true),
+                        essential.get().get_negative_accounting(true, true),
+                    )
+                } else {
+                    (
+                        essential.get().get_positive(true, true),
+                        essential.get().get_negative(true, true),
+                    )
+                };
                 let (value_to_format, mut sign) = if V::REQUIRES_CURRENCY_PRECISION {
                     // Note: we assume that all currency formatting variants within a locale
                     // share the same fraction digits as the standard pattern (verified during datagen).
@@ -554,12 +562,28 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 currency,
             } => {
                 let symbol = symbol.get();
-                let pos_pattern = essential
-                    .get()
-                    .get_positive(symbol.starts_with_letter(), symbol.ends_with_letter());
-                let neg_pattern = essential
-                    .get()
-                    .get_negative(symbol.starts_with_letter(), symbol.ends_with_letter());
+                let starts_with_letter = symbol.starts_with_letter();
+                let ends_with_letter = symbol.ends_with_letter();
+                let is_accounting = self.options.usage == CurrencyUsage::Accounting;
+                let (pos_pattern, neg_pattern) = if is_accounting {
+                    (
+                        essential
+                            .get()
+                            .get_positive_accounting(starts_with_letter, ends_with_letter),
+                        essential
+                            .get()
+                            .get_negative_accounting(starts_with_letter, ends_with_letter),
+                    )
+                } else {
+                    (
+                        essential
+                            .get()
+                            .get_positive(starts_with_letter, ends_with_letter),
+                        essential
+                            .get()
+                            .get_negative(starts_with_letter, ends_with_letter),
+                    )
+                };
                 let (value_to_format, mut sign) = if V::REQUIRES_CURRENCY_PRECISION {
                     // Note: we assume that all currency formatting variants within a locale
                     // share the same fraction digits as the standard pattern (verified during datagen).

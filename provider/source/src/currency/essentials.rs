@@ -178,7 +178,8 @@ fn extract_currency_essentials<'data>(
             .map(create_positive_pattern)
             .transpose()?,
     )
-    .unwrap_or(accounting_pos_idx);
+    // Fallback: accounting_alpha_next_to_number_positive -> standard_alpha_next_to_number
+    .unwrap_or(standard_alpha_idx);
     let accounting_alpha_neg_idx = match accounting_alpha_next_to_number {
         Some(p) => add_pattern(create_negative_pattern(p)?),
         None => None,

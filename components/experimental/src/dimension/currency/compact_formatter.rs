@@ -9,7 +9,7 @@ use icu_decimal::CompactDecimalFormatter;
 use icu_provider::prelude::*;
 
 use super::formatter::{CurrencyFormatter, CurrencyFormatterPreferences};
-use super::{options::CurrencyFormatterOptions, CurrencyCode};
+use super::{CurrencyCode, options::CurrencyFormatterOptions};
 
 impl CurrencyFormatter<CompactDecimalFormatter> {
     icu_provider::gen_buffer_data_constructors!(
