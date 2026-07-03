@@ -165,11 +165,29 @@ fn extract_currency_essentials<'data>(
     // - accounting-alphaNextToNumber falls back to accounting (which falls back to standard).
     // Fallback is handled at runtime by CurrencyEssentials getters to avoid duplicate data storage.
     let standard = &currency_formats.standard;
-    let standard_alpha_next_to_number = currency_formats.standard_alpha_next_to_number.as_ref();
+    let mut standard_alpha_next_to_number = currency_formats.standard_alpha_next_to_number.as_ref();
     let accounting = currency_formats.accounting.as_ref();
-    let accounting_alpha_next_to_number = currency_formats.accounting_alpha_next_to_number.as_ref();
+    let mut accounting_alpha_next_to_number = currency_formats.accounting_alpha_next_to_number.as_ref();
 
-    validate_integer_structures(locale, numsys_name, numbers_block, default_numsys, currency_formats)?;
+    let patched_standard_alpha;
+    let patched_accounting_alpha;
+    if locale.to_string() == "ccp" {
+        patched_standard_alpha = Some(NumberPattern::try_from_str("#,##,##0.00 ¤")?);
+        patched_accounting_alpha = Some(NumberPattern::try_from_str("#,##,##0.00 ¤;(#,##,##0.00 ¤)")?);
+        standard_alpha_next_to_number = patched_standard_alpha.as_ref();
+        accounting_alpha_next_to_number = patched_accounting_alpha.as_ref();
+    }
+
+    validate_integer_structures(
+        locale,
+        numsys_name,
+        numbers_block,
+        default_numsys,
+        standard,
+        standard_alpha_next_to_number,
+        accounting,
+        accounting_alpha_next_to_number,
+    )?;
 
     let mut currency_patterns_map =
         BTreeMap::<UnvalidatedTinyAsciiStr<3>, CurrencyPatternConfig>::new();
@@ -410,7 +428,10 @@ fn validate_integer_structures(
     numsys_name: &str,
     numbers_block: &cldr_serde::numbers::Numbers,
     default_numsys: &str,
-    currency_formats: &cldr_serde::numbers::CurrencyFormattingPatterns,
+    standard: &NumberPattern,
+    standard_alpha_next_to_number: Option<&NumberPattern>,
+    accounting: Option<&NumberPattern>,
+    accounting_alpha_next_to_number: Option<&NumberPattern>,
 ) -> Result<(), DataError> {
     let decimal_formats = numbers_block
         .numsys_data
@@ -439,10 +460,6 @@ fn validate_integer_structures(
                 decimal_int_structure,
                 currency_int_structure,
             );
-            // Skip ccp due to known CLDR inconsistency (standard is Indian grouping, but alphaNextToNumber is Western)
-            if locale.to_string() == "ccp" {
-                return Ok(());
-            }
             return Err(DataError::custom("Mismatch in integer structure").with_display_context(
                 &format!(
                     "Locale: {}, Numsys: {}, Pattern: {}, Decimal: {:?}, Currency: {:?}",
@@ -457,14 +474,14 @@ fn validate_integer_structures(
         Ok(())
     };
 
-    check_pattern(&currency_formats.standard, "standard")?;
-    if let Some(p) = &currency_formats.standard_alpha_next_to_number {
+    check_pattern(standard, "standard")?;
+    if let Some(p) = standard_alpha_next_to_number {
         check_pattern(p, "standard-alphaNextToNumber")?;
     }
-    if let Some(p) = &currency_formats.accounting {
+    if let Some(p) = accounting {
         check_pattern(p, "accounting")?;
     }
-    if let Some(p) = &currency_formats.accounting_alpha_next_to_number {
+    if let Some(p) = accounting_alpha_next_to_number {
         check_pattern(p, "accounting-alphaNextToNumber")?;
     }
 
