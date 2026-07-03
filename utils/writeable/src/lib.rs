@@ -140,8 +140,9 @@ pub mod adapters {
         /// Converts the given value to a `String`.
         ///
         /// Under the hood, this uses an efficient [`Writeable`] implementation.
-        /// However, in order to avoid allocating a string, it is more efficient
-        /// to use [`Writeable`] directly.
+        ///
+        /// If you don't need an allocated [`String`], but e.g. need to write this
+        /// to some sink, it is more efficient to use [`Writeable`] directly.
         #[cfg(feature = "alloc")]
         #[allow(clippy::inherent_to_string_shadow_display)]
         #[inline]
@@ -504,8 +505,9 @@ macro_rules! impl_display_with_writeable {
             /// Converts the given value to a `String`.
             ///
             /// Under the hood, this uses an efficient [`Writeable`] implementation.
-            /// However, in order to avoid allocating a string, it is more efficient
-            /// to use [`Writeable`] directly.
+            ///
+            /// If you don't need an allocated [`String`], but e.g. need to write this
+            /// to some sink, it is more efficient to use [`Writeable`] directly.
             pub fn to_string(&self) -> $crate::_internal::String {
                 $crate::Writeable::write_to_string(self).into_owned()
             }
