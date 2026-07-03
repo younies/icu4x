@@ -14,7 +14,7 @@ use super::super::provider::currency::{
 use super::options::{CurrencyFormatterOptions, CurrencyUsage};
 use super::CurrencyCode;
 use fixed_decimal::{
-    Decimal as FixedDecimal, RoundingIncrement, SignedRoundingMode, UnsignedRoundingMode,
+    Decimal as FixedDecimal, RoundingIncrement, Sign, SignedRoundingMode, UnsignedRoundingMode,
 };
 use icu_decimal::preferences::CompactDecimalFormatterPreferences;
 use icu_decimal::{AbstractFormatter, DecimalFormatter, DecimalFormatterPreferences};
@@ -523,8 +523,9 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 essential,
                 currency,
             } => {
-                let pattern = essential.get().get_positive(true, true);
-                let (value_to_format, sign) = if V::REQUIRES_CURRENCY_PRECISION {
+                let pos_pattern = essential.get().get_positive(true, true);
+                let neg_pattern = essential.get().get_negative(true, true);
+                let (value_to_format, mut sign) = if V::REQUIRES_CURRENCY_PRECISION {
                     // Note: we assume that all currency formatting variants within a locale
                     // share the same fraction digits as the standard pattern (verified during datagen).
                     let (digits, rounding) =
@@ -533,6 +534,16 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                     (rounded_value.absolute, rounded_value.sign)
                 } else {
                     (value.absolute.clone(), value.sign)
+                };
+                let pattern = if sign == Sign::Negative {
+                    if let Some(neg_pattern) = neg_pattern {
+                        sign = Sign::None;
+                        neg_pattern
+                    } else {
+                        pos_pattern
+                    }
+                } else {
+                    pos_pattern
                 };
                 let formatted_value = V::format_unsigned(&self.value_formatter, value_to_format);
                 (pattern, currency.0.as_str(), formatted_value, sign)
@@ -543,10 +554,13 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 currency,
             } => {
                 let symbol = symbol.get();
-                let pattern = essential
+                let pos_pattern = essential
                     .get()
                     .get_positive(symbol.starts_with_letter(), symbol.ends_with_letter());
-                let (value_to_format, sign) = if V::REQUIRES_CURRENCY_PRECISION {
+                let neg_pattern = essential
+                    .get()
+                    .get_negative(symbol.starts_with_letter(), symbol.ends_with_letter());
+                let (value_to_format, mut sign) = if V::REQUIRES_CURRENCY_PRECISION {
                     // Note: we assume that all currency formatting variants within a locale
                     // share the same fraction digits as the standard pattern (verified during datagen).
                     let (digits, rounding) =
@@ -555,6 +569,16 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                     (rounded_value.absolute, rounded_value.sign)
                 } else {
                     (value.absolute.clone(), value.sign)
+                };
+                let pattern = if sign == Sign::Negative {
+                    if let Some(neg_pattern) = neg_pattern {
+                        sign = Sign::None;
+                        neg_pattern
+                    } else {
+                        pos_pattern
+                    }
+                } else {
+                    pos_pattern
                 };
                 let formatted_value = V::format_unsigned(&self.value_formatter, value_to_format);
                 (pattern, symbol.as_str(), formatted_value, sign)

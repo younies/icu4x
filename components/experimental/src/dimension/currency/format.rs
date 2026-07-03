@@ -351,4 +351,27 @@ mod tests {
         assert_writeable_eq!(fmt_cash.format_fixed_decimal(&value1), "CHF\u{a0}1.25");
         assert_writeable_eq!(fmt_cash.format_fixed_decimal(&value2), "CHF\u{a0}1.20");
     }
+
+    #[test]
+    pub fn test_negative_values() {
+        let prefs: CurrencyFormatterPreferences = locale!("en").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let value = "-12345.67".parse().unwrap();
+
+        let fmt_short =
+            CurrencyFormatter::try_new_short(prefs, Default::default(), &currency_code).unwrap();
+        assert_writeable_eq!(fmt_short.format_fixed_decimal(&value), "-$12,345.67");
+    }
+
+    #[test]
+    pub fn test_compact_negative_values() {
+        let prefs: CurrencyFormatterPreferences = locale!("en").into();
+        let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let value = "-12345.67".parse().unwrap();
+
+        let fmt_short =
+            CurrencyFormatter::try_new_compact_short(prefs, Default::default(), &currency_code)
+                .unwrap();
+        assert_writeable_eq!(fmt_short.format_fixed_decimal(&value), "-$12K");
+    }
 }
