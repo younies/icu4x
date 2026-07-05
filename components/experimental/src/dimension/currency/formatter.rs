@@ -7,10 +7,11 @@ use core::fmt::Display;
 use super::super::provider::currency::{
     essentials::{CurrencyEssentials, CurrencyEssentialsV1},
     extended::CurrencyExtendedDataV1,
-    fractions::{CurrencyFractionsV1, FractionInfo, Rounding},
+    fractions::{CurrencyFractions, CurrencyFractionsV1, FractionInfo, Rounding},
     patterns::CurrencyPatternsDataV1,
     symbols::CurrencySymbolsV1,
 };
+use super::options::{CurrencyFormatterOptions, CurrencyUsage};
 use super::CurrencyCode;
 use fixed_decimal::{
     Decimal as FixedDecimal, RoundingIncrement, SignedRoundingMode, UnsignedRoundingMode,
@@ -75,6 +76,7 @@ pub(crate) enum CurrencyFormatterData {
 /// Read more about the options in the [`super::options`] module.
 #[derive(Debug)]
 pub struct CurrencyFormatter<V: AbstractFormatter> {
+    pub(crate) options: CurrencyFormatterOptions,
     value_formatter: V,
     currency_data: CurrencyFormatterData,
     fractions: DataPayload<CurrencyFractionsV1>,
@@ -85,6 +87,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     pub(crate) fn try_new_essential(
         value_formatter: V,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency: CurrencyCode,
         width: TinyAsciiStr<1>,
     ) -> Result<Self, DataError> {
@@ -124,6 +127,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let fractions = crate::provider::Baked.load(Default::default())?.payload;
 
         Ok(Self {
+            options,
             value_formatter,
             currency_data,
             fractions,
@@ -134,6 +138,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         provider: &D,
         value_formatter: V,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency: CurrencyCode,
         width: TinyAsciiStr<1>,
     ) -> Result<Self, DataError>
@@ -175,6 +180,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let fractions = provider.load(Default::default())?.payload;
 
         Ok(Self {
+            options,
             value_formatter,
             currency_data,
             fractions,
@@ -185,6 +191,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     pub(crate) fn try_new_long_internal(
         value_formatter: V,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency: CurrencyCode,
     ) -> Result<Self, DataError> {
         let locale = CurrencyPatternsDataV1::make_locale(prefs.locale_preferences);
@@ -214,6 +221,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let fractions = crate::provider::Baked.load(Default::default())?.payload;
 
         Ok(Self {
+            options,
             value_formatter,
             currency_data: CurrencyFormatterData::Long {
                 extended,
@@ -229,6 +237,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         provider: &D,
         value_formatter: V,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency: CurrencyCode,
     ) -> Result<Self, DataError>
     where
@@ -265,6 +274,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let fractions = provider.load(Default::default())?.payload;
 
         Ok(Self {
+            options,
             value_formatter,
             currency_data: CurrencyFormatterData::Long {
                 extended,
@@ -279,7 +289,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
 
 impl CurrencyFormatter<DecimalFormatter> {
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: &CurrencyCode) -> error: DataError,
+        (prefs: CurrencyFormatterPreferences, options: CurrencyFormatterOptions, currency_code: &CurrencyCode) -> error: DataError,
         functions: [
             try_new_short: skip,
             try_new_short_with_buffer_provider,
@@ -289,7 +299,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: &CurrencyCode) -> error: DataError,
+        (prefs: CurrencyFormatterPreferences, options: CurrencyFormatterOptions, currency_code: &CurrencyCode) -> error: DataError,
         functions: [
             try_new_narrow: skip,
             try_new_narrow_with_buffer_provider,
@@ -299,7 +309,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: &CurrencyCode) -> error: DataError,
+        (prefs: CurrencyFormatterPreferences, options: CurrencyFormatterOptions, currency_code: &CurrencyCode) -> error: DataError,
         functions: [
             try_new_long: skip,
             try_new_long_with_buffer_provider,
@@ -316,11 +326,13 @@ impl CurrencyFormatter<DecimalFormatter> {
     #[cfg(feature = "compiled_data")]
     pub fn try_new_short(
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError> {
         Self::try_new_essential(
             DecimalFormatter::try_new((&prefs).into(), Default::default())?,
             prefs,
+            options,
             *currency_code,
             CurrencySymbolsV1::SHORT,
         )
@@ -334,11 +346,13 @@ impl CurrencyFormatter<DecimalFormatter> {
     #[cfg(feature = "compiled_data")]
     pub fn try_new_narrow(
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError> {
         Self::try_new_essential(
             DecimalFormatter::try_new((&prefs).into(), Default::default())?,
             prefs,
+            options,
             *currency_code,
             CurrencySymbolsV1::NARROW,
         )
@@ -348,6 +362,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     pub fn try_new_short_unstable<D>(
         provider: &D,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError>
     where
@@ -362,6 +377,7 @@ impl CurrencyFormatter<DecimalFormatter> {
             provider,
             DecimalFormatter::try_new_unstable(provider, (&prefs).into(), Default::default())?,
             prefs,
+            options,
             *currency_code,
             CurrencySymbolsV1::SHORT,
         )
@@ -371,6 +387,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     pub fn try_new_narrow_unstable<D>(
         provider: &D,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError>
     where
@@ -385,6 +402,7 @@ impl CurrencyFormatter<DecimalFormatter> {
             provider,
             DecimalFormatter::try_new_unstable(provider, (&prefs).into(), Default::default())?,
             prefs,
+            options,
             *currency_code,
             CurrencySymbolsV1::NARROW,
         )
@@ -402,18 +420,20 @@ impl CurrencyFormatter<DecimalFormatter> {
     ///
     /// let currency_preferences = locale!("en-US").into();
     /// let currency_code = CurrencyCode(tinystr!(3, "USD"));
-    /// let fmt = CurrencyFormatter::try_new_long(currency_preferences, &currency_code).unwrap();
+    /// let fmt = CurrencyFormatter::try_new_long(currency_preferences, Default::default(), &currency_code).unwrap();
     /// let value = "12345.67".parse().unwrap();
     /// assert_writeable_eq!(fmt.format_fixed_decimal(&value), "12,345.67 US dollars");
     /// ```
     #[cfg(feature = "compiled_data")]
     pub fn try_new_long(
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError> {
         Self::try_new_long_internal(
             DecimalFormatter::try_new((&prefs).into(), Default::default())?,
             prefs,
+            options,
             *currency_code,
         )
     }
@@ -422,6 +442,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     pub fn try_new_long_unstable<D>(
         provider: &D,
         prefs: CurrencyFormatterPreferences,
+        options: CurrencyFormatterOptions,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError>
     where
@@ -437,6 +458,7 @@ impl CurrencyFormatter<DecimalFormatter> {
             provider,
             DecimalFormatter::try_new_unstable(provider, (&prefs).into(), Default::default())?,
             prefs,
+            options,
             *currency_code,
         )
     }
@@ -455,7 +477,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     ///
     /// let currency_preferences = locale!("en-US").into();
     /// let currency_code = CurrencyCode(tinystr!(3, "USD"));
-    /// let fmt = CurrencyFormatter::try_new_short(currency_preferences, &currency_code).unwrap();
+    /// let fmt = CurrencyFormatter::try_new_short(currency_preferences, Default::default(), &currency_code).unwrap();
     /// let value = "12345.67".parse().unwrap();
     /// assert_writeable_eq!(
     ///     fmt.format_fixed_decimal(&value),
@@ -472,7 +494,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     ///
     /// let currency_preferences = locale!("en-US").into();
     /// let currency_code = CurrencyCode(tinystr!(3, "USD"));
-    /// let fmt = CurrencyFormatter::try_new_compact_short(currency_preferences, &currency_code).unwrap();
+    /// let fmt = CurrencyFormatter::try_new_compact_short(currency_preferences, Default::default(), &currency_code).unwrap();
     /// let value = "12345.67".parse().unwrap();
     /// assert_writeable_eq!(fmt.format_fixed_decimal(&value), "$12K");
     /// ```
@@ -486,7 +508,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     ///
     /// let currency_preferences = locale!("en-US").into();
     /// let currency_code = CurrencyCode(tinystr!(3, "USD"));
-    /// let fmt = CurrencyFormatter::try_new_compact_long(currency_preferences, &currency_code).unwrap();
+    /// let fmt = CurrencyFormatter::try_new_compact_long(currency_preferences, Default::default(), &currency_code).unwrap();
     /// let value = "12345.67".parse().unwrap();
     /// assert_writeable_eq!(fmt.format_fixed_decimal(&value), "12 thousand US dollars");
     /// ```
@@ -505,9 +527,9 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 let (value_to_format, sign) = if V::REQUIRES_CURRENCY_PRECISION {
                     // Note: we assume that all currency formatting variants within a locale
                     // share the same fraction digits as the standard pattern (verified during datagen).
-                    let fraction_info =
+                    let (digits, rounding) =
                         self.resolve_fraction_info(*currency, Some(essential.get()));
-                    let rounded_value = apply_precision(value.clone(), fraction_info);
+                    let rounded_value = apply_precision(value.clone(), digits, rounding);
                     (rounded_value.absolute, rounded_value.sign)
                 } else {
                     (value.absolute.clone(), value.sign)
@@ -527,9 +549,9 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 let (value_to_format, sign) = if V::REQUIRES_CURRENCY_PRECISION {
                     // Note: we assume that all currency formatting variants within a locale
                     // share the same fraction digits as the standard pattern (verified during datagen).
-                    let fraction_info =
+                    let (digits, rounding) =
                         self.resolve_fraction_info(*currency, Some(essential.get()));
-                    let rounded_value = apply_precision(value.clone(), fraction_info);
+                    let rounded_value = apply_precision(value.clone(), digits, rounding);
                     (rounded_value.absolute, rounded_value.sign)
                 } else {
                     (value.absolute.clone(), value.sign)
@@ -544,8 +566,8 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 currency,
             } => {
                 let (value_to_format, sign) = if V::REQUIRES_CURRENCY_PRECISION {
-                    let fraction_info = self.resolve_fraction_info(*currency, None);
-                    let rounded_value = apply_precision(value.clone(), fraction_info);
+                    let (digits, rounding) = self.resolve_fraction_info(*currency, None);
+                    let rounded_value = apply_precision(value.clone(), digits, rounding);
                     (rounded_value.absolute, rounded_value.sign)
                 } else {
                     (value.absolute.clone(), value.sign)
@@ -585,26 +607,13 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         &self,
         currency_code: CurrencyCode,
         essentials: Option<&CurrencyEssentials>,
-    ) -> FractionInfo {
-        let iso_code = currency_code.0.to_unvalidated();
-
-        // 1. Try currency-specific override in global map
-        if let Some(ule) = self.fractions.get().fractions.get(&iso_code) {
-            return zerovec::ule::AsULE::from_unaligned(*ule);
-        }
-
-        // 2. Try locale-specific standard fraction digits
-        if let Some(essentials) = essentials {
-            return FractionInfo {
-                digits: essentials.standard_fractions,
-                rounding: Rounding::R1,
-                cash_digits: None,
-                cash_rounding: None,
-            };
-        }
-
-        // 3. Fallback to global default
-        self.fractions.get().default
+    ) -> (u8, Rounding) {
+        resolve_fraction_info(
+            self.fractions.get(),
+            self.options.usage,
+            essentials,
+            currency_code,
+        )
     }
 }
 
@@ -642,9 +651,44 @@ pub(crate) fn load_with_fallback<'a, M: DataMarker>(
     Err(DataErrorKind::InvalidRequest.into_error())
 }
 
-pub(crate) fn apply_precision(value: FixedDecimal, fraction_info: FractionInfo) -> FixedDecimal {
-    let precision = fraction_info.digits as i16;
-    let rounding = fraction_info.rounding;
+pub(crate) fn resolve_fraction_info(
+    fractions: &CurrencyFractions<'_>,
+    usage: CurrencyUsage,
+    essentials: Option<&CurrencyEssentials>,
+    currency_code: CurrencyCode,
+) -> (u8, Rounding) {
+    let iso_code = currency_code.0.to_unvalidated();
+
+    let fraction_info = if let Some(ule) = fractions.fractions.get(&iso_code) {
+        zerovec::ule::AsULE::from_unaligned(*ule)
+    } else if let Some(essentials) = essentials {
+        FractionInfo {
+            digits: essentials.standard_fractions,
+            rounding: Rounding::R1,
+            cash_digits: None,
+            cash_rounding: None,
+        }
+    } else {
+        fractions.default
+    };
+
+    let mut digits = fraction_info.digits;
+    let mut rounding = fraction_info.rounding;
+
+    if usage == CurrencyUsage::Cash {
+        if let Some(cash_digits) = fraction_info.cash_digits {
+            digits = cash_digits;
+        }
+        if let Some(cash_rounding) = fraction_info.cash_rounding {
+            rounding = cash_rounding;
+        }
+    }
+
+    (digits, rounding)
+}
+
+pub(crate) fn apply_precision(value: FixedDecimal, digits: u8, rounding: Rounding) -> FixedDecimal {
+    let precision = digits as i16;
 
     let (magnitude, increment) = match rounding {
         Rounding::R50 => (-precision + 1, RoundingIncrement::MultiplesOf5),

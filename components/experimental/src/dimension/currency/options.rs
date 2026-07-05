@@ -12,4 +12,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
-pub struct CurrencyFormatterOptions {}
+pub struct CurrencyFormatterOptions {
+    /// The usage of the currency format (standard or cash).
+    pub usage: CurrencyUsage,
+}
+
+/// The usage of the currency format.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub enum CurrencyUsage {
+    /// Standard currency formatting.
+    #[default]
+    Standard,
+    /// Cash currency formatting (may use different rounding).
+    Cash,
+}
