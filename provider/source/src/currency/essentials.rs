@@ -36,7 +36,7 @@ impl DataProvider<CurrencyEssentialsV1> for SourceDataProvider {
             &numbers_resource.main.value.numbers.default_numbering_system
         };
 
-        let result = extract_currency_essentials(self, numbers_resource, nsname);
+        let result = extract_currency_essentials(self, numbers_resource, nsname, req.id.locale);
 
         Ok(DataResponse {
             metadata: Default::default(),
@@ -47,7 +47,31 @@ impl DataProvider<CurrencyEssentialsV1> for SourceDataProvider {
 
 impl IterableDataProviderCached<CurrencyEssentialsV1> for SourceDataProvider {
     fn iter_ids_cached(&self) -> Result<HashSet<DataIdentifierCow<'static>>, DataError> {
-        self.iter_ids_for_numbers_with_locales()
+        let mut ids = HashSet::new();
+        for locale in self.cldr()?.numbers().list_locales()? {
+            let numbers_resource: &cldr_serde::numbers::Resource = self
+                .cldr()?
+                .numbers()
+                .read_and_parse(&locale, "numbers.json")?;
+            let numbers = &numbers_resource.main.value.numbers;
+            let default_numsys = &numbers.default_numbering_system;
+
+            for (nsname, patterns) in &numbers.numsys_data.currency_patterns {
+                if patterns.standard.positive.is_empty() {
+                    log::warn!("{locale}/{nsname}: empty standard currency pattern, skipping");
+                    continue;
+                }
+                if nsname == default_numsys {
+                    ids.insert(DataIdentifierCow::from_locale(locale));
+                } else if let Ok(attr) = DataMarkerAttributes::try_from_str(nsname) {
+                    ids.insert(
+                        DataIdentifierBorrowed::for_marker_attributes_and_locale(attr, &locale)
+                            .into_owned(),
+                    );
+                }
+            }
+        }
+        Ok(ids)
     }
 }
 
@@ -55,23 +79,23 @@ fn extract_currency_essentials<'data>(
     _provider: &SourceDataProvider,
     numbers_resource: &cldr_serde::numbers::Resource,
     numsys_name: &str,
+    locale: &DataLocale,
 ) -> Result<CurrencyEssentials<'data>, DataError> {
     let numbers_block = &numbers_resource.main.value.numbers;
-    let default_numsys = &numbers_block.default_numbering_system;
     let currency_formats = numbers_block
         .numsys_data
         .currency_patterns
         .get(numsys_name)
-        .or_else(|| {
-            numbers_block
-                .numsys_data
-                .currency_patterns
-                .get(default_numsys)
-        })
-        .or_else(|| numbers_block.numsys_data.currency_patterns.get("latn"))
-        .ok_or_else(|| DataError::custom("Could not find currency patterns"))?;
+        .ok_or_else(|| DataErrorKind::IdentifierNotFound.into_error())?;
 
+    // We only generate CurrencyEssentials for locale/numsys pairs that possess a non-empty standard
+    // currency pattern (verified during ID iteration in `iter_ids_cached`). Therefore, if this pattern
+    // is missing or empty when `load` is called directly, the requested locale data is unsupported
+    // or malformed, so we treat the identifier as not found.
     let standard = &currency_formats.standard;
+    if standard.positive.is_empty() {
+        return Err(DataErrorKind::IdentifierNotFound.into_error());
+    }
     let standard_alpha_next_to_number = currency_formats.standard_alpha_next_to_number.as_ref();
     let accounting = currency_formats.accounting.as_ref();
     let accounting_alpha_next_to_number = currency_formats.accounting_alpha_next_to_number.as_ref();
@@ -171,10 +195,50 @@ fn extract_currency_essentials<'data>(
         accounting_alpha_next_to_number_negative: accounting_alpha_neg_idx,
     };
 
+    let standard_fractions = extract_precision(&standard.positive);
+    for pattern in [
+        Some(standard),
+        standard_alpha_next_to_number,
+        accounting,
+        accounting_alpha_next_to_number,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if extract_precision(&pattern.positive) != standard_fractions
+            || pattern
+                .negative
+                .as_ref()
+                .is_some_and(|neg| extract_precision(neg) != standard_fractions)
+        {
+            log::warn!("{locale}/{numsys_name}: inconsistent currency pattern fraction digits");
+            break;
+        }
+    }
+
     Ok(CurrencyEssentials {
         patterns: VarZeroVec::from(&unique_patterns),
         indices,
+        standard_fractions,
     })
+}
+
+fn extract_precision(items: &[NumberPatternItem]) -> u8 {
+    let mut digits = 0;
+    let mut has_decimal = false;
+    for item in items {
+        if has_decimal {
+            match item {
+                NumberPatternItem::MandatoryDigit | NumberPatternItem::OptionalDigit => {
+                    digits += 1;
+                }
+                _ => {}
+            }
+        } else if matches!(item, NumberPatternItem::DecimalSeparator) {
+            has_decimal = true;
+        }
+    }
+    digits
 }
 
 #[test]

@@ -9,7 +9,10 @@ mod tests {
     use tinystr::*;
     use writeable::assert_writeable_eq;
 
-    use crate::dimension::currency::{CurrencyCode, formatter::CurrencyFormatter};
+    use crate::dimension::currency::{
+        CurrencyCode,
+        formatter::{CurrencyFormatter, CurrencyFormatterPreferences},
+    };
 
     #[test]
     pub fn test_en_us() {
@@ -29,15 +32,13 @@ mod tests {
             "-$12,345.67"
         );
 
-        // TODO(#8151): This should format to 2 decimal places ($123.46 or $123.00) once we use currency patterns.
-        // Currently it uses decimal patterns which do not pad '123' to 2 decimal places, and do not round '123.4567'.
         let value_no_decimals = "123".parse().unwrap();
-        assert_writeable_eq!(fmt_short.format_fixed_decimal(&value_no_decimals), "$123");
-        let value_4_decimals = "123.4567".parse().unwrap();
         assert_writeable_eq!(
-            fmt_short.format_fixed_decimal(&value_4_decimals),
-            "$123.4567"
+            fmt_short.format_fixed_decimal(&value_no_decimals),
+            "$123.00"
         );
+        let value_4_decimals = "123.4567".parse().unwrap();
+        assert_writeable_eq!(fmt_short.format_fixed_decimal(&value_4_decimals), "$123.46");
 
         // Narrow
         let fmt_narrow = CurrencyFormatter::try_new_narrow(prefs, &currency_code).unwrap();
@@ -50,11 +51,13 @@ mod tests {
             "-$12,345.67"
         );
 
-        // TODO(#8151): This should format to 2 decimal places ($123.46 or $123.00) once we use currency patterns.
-        assert_writeable_eq!(fmt_narrow.format_fixed_decimal(&value_no_decimals), "$123");
+        assert_writeable_eq!(
+            fmt_narrow.format_fixed_decimal(&value_no_decimals),
+            "$123.00"
+        );
         assert_writeable_eq!(
             fmt_narrow.format_fixed_decimal(&value_4_decimals),
-            "$123.4567"
+            "$123.46"
         );
 
         // Long
@@ -68,14 +71,13 @@ mod tests {
             "-12,345.67 US dollars"
         );
 
-        // TODO(#8151): This should format to 2 decimal places ("123.46 US dollars" or "123.00 US dollars") once we use currency patterns.
         assert_writeable_eq!(
             fmt_long.format_fixed_decimal(&value_no_decimals),
-            "123 US dollars"
+            "123.00 US dollars"
         );
         assert_writeable_eq!(
             fmt_long.format_fixed_decimal(&value_4_decimals),
-            "123.4567 US dollars"
+            "123.46 US dollars"
         );
     }
 
@@ -251,5 +253,35 @@ mod tests {
         // Narrow
         let fmt_narrow = CurrencyFormatter::try_new_narrow(prefs, &currency_code).unwrap();
         assert_writeable_eq!(fmt_narrow.format_fixed_decimal(&value), "$12,345.67");
+    }
+
+    #[test]
+    pub fn test_long_fallback_to_iso() {
+        let prefs: CurrencyFormatterPreferences = locale!("en-US").into();
+        let currency_code = CurrencyCode(tinystr!(3, "XYZ"));
+        let value = "12345.67".parse().unwrap();
+
+        let fmt_long = CurrencyFormatter::try_new_long(prefs, &currency_code).unwrap();
+        assert_writeable_eq!(fmt_long.format_fixed_decimal(&value), "12,345.67 XYZ");
+    }
+
+    #[test]
+    pub fn test_jpy() {
+        let prefs: CurrencyFormatterPreferences = locale!("en-US").into();
+        let currency_code = CurrencyCode(tinystr!(3, "JPY"));
+        let value = "12345.67".parse().unwrap();
+
+        // JPY has 0 decimals (defined in global CurrencyFractionsV1)
+        // Short
+        let fmt_short = CurrencyFormatter::try_new_short(prefs, &currency_code).unwrap();
+        assert_writeable_eq!(fmt_short.format_fixed_decimal(&value), "¥12,346");
+
+        // Narrow
+        let fmt_narrow = CurrencyFormatter::try_new_narrow(prefs, &currency_code).unwrap();
+        assert_writeable_eq!(fmt_narrow.format_fixed_decimal(&value), "¥12,346");
+
+        // Long
+        let fmt_long = CurrencyFormatter::try_new_long(prefs, &currency_code).unwrap();
+        assert_writeable_eq!(fmt_long.format_fixed_decimal(&value), "12,346 Japanese yen");
     }
 }

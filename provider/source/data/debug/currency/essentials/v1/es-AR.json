@@ -38,5 +38,6 @@
     "accounting_negative": 1,
     "accounting_alpha_next_to_number_positive": 0,
     "accounting_alpha_next_to_number_negative": 1
-  }
+  },
+  "standard_fractions": 2
 }
