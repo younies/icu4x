@@ -7,24 +7,6 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// A collection of configuration options that determine the formatting behavior of
-/// [`CurrencyFormatter`](crate::dimension::currency::formatter::CurrencyFormatter).
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Default, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[non_exhaustive]
-pub struct CurrencyFormatterOptions {
-    // TODO: Remove this option after migrating all formatters (including CompactCurrencyFormatter)
-    // to use specific constructors, as the width is determined at construction time.
-    /// The width of the currency format.
-    pub width: Width,
-}
-
-impl From<Width> for CurrencyFormatterOptions {
-    fn from(width: Width) -> Self {
-        Self { width }
-    }
-}
-
 #[derive(Default, Debug, Eq, PartialEq, Clone, Copy, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]

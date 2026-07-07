@@ -10,7 +10,7 @@ use icu_plurals::PluralRules;
 use icu_provider::prelude::*;
 use writeable::Writeable;
 
-use crate::dimension::currency::compact_formatter::CompactCurrencyFormatterPreferences;
+use crate::dimension::currency::formatter::CurrencyFormatterPreferences;
 use crate::dimension::provider::currency::{
     extended::CurrencyExtendedDataV1, patterns::CurrencyPatternsDataV1,
 };
@@ -43,7 +43,7 @@ pub struct LongCompactCurrencyFormatter {
 impl LongCompactCurrencyFormatter {
     icu_provider::gen_buffer_data_constructors!(
         (
-            prefs: CompactCurrencyFormatterPreferences,
+            prefs: CurrencyFormatterPreferences,
             currency_code: &CurrencyCode
         ) -> error: DataError,
         functions: [
@@ -61,7 +61,7 @@ impl LongCompactCurrencyFormatter {
     /// [📚 Help choosing a constructor](icu_provider::constructors)
     #[cfg(feature = "compiled_data")]
     pub fn try_new(
-        prefs: CompactCurrencyFormatterPreferences,
+        prefs: CurrencyFormatterPreferences,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError> {
         let decimal_formatter = DecimalFormatter::try_new((&prefs).into(), Default::default())?;
@@ -115,7 +115,7 @@ impl LongCompactCurrencyFormatter {
     #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new)]
     pub fn try_new_unstable<D>(
         provider: &D,
-        prefs: CompactCurrencyFormatterPreferences,
+        prefs: CurrencyFormatterPreferences,
         currency_code: &CurrencyCode,
     ) -> Result<Self, DataError>
     where

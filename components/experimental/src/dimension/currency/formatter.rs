@@ -6,6 +6,7 @@ use core::fmt::Display;
 use core::marker::PhantomData;
 
 use fixed_decimal::Decimal as FixedDecimal;
+use icu_decimal::preferences::CompactDecimalFormatterPreferences;
 use icu_decimal::{
     DecimalFormatter, DecimalFormatterPreferences, options::DecimalFormatterOptions,
 };
@@ -16,7 +17,7 @@ use writeable::Writeable;
 
 use super::super::provider::currency::essentials::CurrencyEssentialsV1;
 use super::CurrencyCode;
-use super::options::{CurrencyFormatterOptions, Width};
+use super::options::Width;
 use icu_pattern::DoublePlaceholderPattern;
 
 extern crate alloc;
@@ -36,17 +37,35 @@ define_preferences!(
 prefs_convert!(CurrencyFormatterPreferences, DecimalFormatterPreferences, {
     numbering_system
 });
+prefs_convert!(
+    CurrencyFormatterPreferences,
+    CompactDecimalFormatterPreferences
+);
 prefs_convert!(CurrencyFormatterPreferences, PluralRulesPreferences);
 
 /// A trait for value representation in currency formatting.
-pub trait ValueRepresentation {}
+pub trait ValueRepresentation {
+    /// Data required for this specific value representation.
+    type Data: core::fmt::Debug;
+}
 
 /// Representation for decimal currency formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Decimal;
 
-impl ValueRepresentation for Decimal {}
+impl ValueRepresentation for Decimal {
+    type Data = ();
+}
+
+/// Representation for compact currency formatting.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Compact;
+
+impl ValueRepresentation for Compact {
+    type Data = super::compact_formatter::CompactData;
+}
 
 /// A formatter for monetary values.
 ///
@@ -57,22 +76,22 @@ impl ValueRepresentation for Decimal {}
 /// Read more about the options in the [`super::options`] module.
 #[derive(Debug)]
 pub struct CurrencyFormatter<V: ValueRepresentation> {
-    /// Options bag for the currency formatter.
-    ///
-    /// Internal options (such as the currency width) are set automatically
-    /// by the constructors (e.g., `try_new_short` sets the width to `Short`).
-    options: CurrencyFormatterOptions,
+    /// The width of the currency format (short or narrow).
+    pub(crate) width: Width,
 
     /// Essential data for the currency formatter.
-    essential: DataPayload<CurrencyEssentialsV1>,
+    pub(crate) essential: DataPayload<CurrencyEssentialsV1>,
 
     /// A [`DecimalFormatter`] to format the currency value.
-    decimal_formatter: DecimalFormatter,
+    pub(crate) decimal_formatter: DecimalFormatter,
 
     /// The currency code that this formatter is bound to.
-    bound_currency: CurrencyCode,
+    pub(crate) bound_currency: CurrencyCode,
 
-    _marker: PhantomData<V>,
+    /// Data and rules specific to the value representation `V`.
+    pub(crate) rep_data: V::Data,
+
+    pub(crate) _marker: PhantomData<V>,
 }
 
 impl CurrencyFormatter<Decimal> {
@@ -131,10 +150,11 @@ impl CurrencyFormatter<Decimal> {
         }
 
         Ok(Self {
-            options: Width::Short.into(),
+            width: Width::Short,
             essential,
             decimal_formatter,
             bound_currency: *currency_code,
+            rep_data: (),
             _marker: PhantomData,
         })
     }
@@ -165,10 +185,11 @@ impl CurrencyFormatter<Decimal> {
         }
 
         Ok(Self {
-            options: Width::Narrow.into(),
+            width: Width::Narrow,
             essential,
             decimal_formatter,
             bound_currency: *currency_code,
+            rep_data: (),
             _marker: PhantomData,
         })
     }
@@ -206,10 +227,11 @@ impl CurrencyFormatter<Decimal> {
         }
 
         Ok(Self {
-            options: Width::Short.into(),
+            width: Width::Short,
             essential,
             decimal_formatter,
             bound_currency: *currency_code,
+            rep_data: (),
             _marker: PhantomData,
         })
     }
@@ -243,10 +265,11 @@ impl CurrencyFormatter<Decimal> {
         }
 
         Ok(Self {
-            options: Width::Narrow.into(),
+            width: Width::Narrow,
             essential,
             decimal_formatter,
             bound_currency: *currency_code,
+            rep_data: (),
             _marker: PhantomData,
         })
     }
@@ -280,10 +303,15 @@ impl CurrencyFormatter<Decimal> {
         let (currency_str, pattern, _pattern_selection) = self
             .essential
             .get()
-            .name_and_pattern(self.options.width, &self.bound_currency);
+            .name_and_pattern(self.width, &self.bound_currency);
 
         let pattern = pattern.unwrap_or_else(|| <&DoublePlaceholderPattern>::default());
 
+        // Per UTS #35 (LDML / TR35 Part 3: Numbers, Section 3.2.1), when a pattern does not specify an
+        // explicit negative subpattern, the default negative format is formed by prepending the localized
+        // minus sign to the entire positive pattern (e.g., `-¤#,##0.00` producing `-$123.45`).
+        // Therefore, `format_sign` is applied as the outermost wrapper around the glued currency string so
+        // that the minus sign modifies the full monetary expression rather than just the numeric significand.
         self.decimal_formatter.format_sign(
             value.sign,
             pattern.interpolate((
@@ -297,7 +325,7 @@ impl CurrencyFormatter<Decimal> {
 
 // TODO: Discuss reusing the `load_with_fallback` helper from `icu_decimal`
 // (or moving it to a shared location) instead of duplicating it here.
-fn load_with_fallback<'a, M: DataMarker>(
+pub(crate) fn load_with_fallback<'a, M: DataMarker>(
     provider: &(impl DataProvider<M> + ?Sized),
     ids: impl Iterator<Item = DataIdentifierBorrowed<'a>>,
 ) -> Result<DataResponse<M>, DataError> {
