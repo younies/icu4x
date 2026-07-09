@@ -17,7 +17,7 @@ use crate::{
 use alloc::string::String;
 use fixed_decimal::UnsignedDecimal;
 use icu_pattern::{Pattern, SinglePlaceholder};
-use icu_plurals::PluralRules;
+use icu_plurals::{PluralOperands, PluralRules};
 use icu_provider::DataError;
 use icu_provider::{marker::ErasedMarker, prelude::*};
 use writeable::Writeable;
@@ -396,6 +396,7 @@ impl CompactDecimalFormatter {
                     pattern: Some(t.variable.get(1.into(), &self.plural_rules).1),
                     significand: UnsignedDecimal::ONE,
                     decimal_formatter: &self.decimal_formatter,
+                    exponent: next_exponent,
                 };
             }
         }
@@ -420,6 +421,7 @@ impl CompactDecimalFormatter {
                 .multiplied_pow10(-i16::from(exponent))
                 .trimmed_end(),
             decimal_formatter: &self.decimal_formatter,
+            exponent,
         }
     }
 
@@ -608,6 +610,7 @@ pub struct FormattedUnsignedCompactDecimal<'l> {
     pattern: Option<&'l Pattern<SinglePlaceholder>>,
     significand: UnsignedDecimal,
     decimal_formatter: &'l DecimalFormatter,
+    exponent: u8,
 }
 
 impl Writeable for FormattedUnsignedCompactDecimal<'_> {
@@ -621,12 +624,19 @@ impl Writeable for FormattedUnsignedCompactDecimal<'_> {
     }
 }
 
+impl FormattedUnsignedCompactDecimal<'_> {
+    pub(crate) fn plural_operands(&self) -> PluralOperands {
+        PluralOperands::from_significand_and_exponent(&self.significand, self.exponent)
+    }
+}
+
 #[cfg(feature = "serde")]
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::options::GroupingStrategy;
     use icu_locale_core::locale;
+    use icu_plurals::PluralElements;
     use writeable::assert_writeable_eq;
 
     #[allow(non_snake_case)]
@@ -690,6 +700,37 @@ mod tests {
             let result10T = formatter.format(&10_000_000_000_000_000i64.into());
             assert_writeable_eq!(result10T, case.expected10T, "{:?}", case);
         }
+    }
+
+    #[test]
+    fn plural() {
+        let decimal = DecimalFormatter::try_new(locale!("fr").into(), Default::default()).unwrap();
+        let decimal = decimal.format_unsigned(Cow::Owned(999_999u64.into()));
+
+        let compact =
+            CompactDecimalFormatter::try_new_short(locale!("fr").into(), Default::default())
+                .unwrap();
+        let compact = compact.format_unsigned(&999_999u64.into());
+
+        let dollars = PluralElements::new("dollars US")
+            .with_one_value(Some("dollar US"))
+            .with_many_value(Some("de dollars US"));
+
+        assert_eq!(
+            *dollars.get(
+                decimal.plural_operands(),
+                &PluralRules::try_new(locale!("fr").into(), Default::default()).unwrap()
+            ),
+            "dollars US"
+        );
+
+        assert_eq!(
+            *dollars.get(
+                compact.plural_operands(),
+                &PluralRules::try_new(locale!("fr").into(), Default::default()).unwrap()
+            ),
+            "de dollars US"
+        );
     }
 
     #[test]
