@@ -40,7 +40,7 @@ impl DataProvider<PropertyScriptWithExtensionsV1> for SourceDataProvider {
         #[cfg(any(feature = "use_wasm", feature = "use_icu4c"))]
         {
             let data = if let Some(t) = self
-                .unicode()?
+                .rscd()?
                 .cpt_cache
                 .get(core::str::from_utf8(Script::SHORT_NAME).unwrap())
                 .and_then(|t| t.downcast_ref::<ScriptWithExtensionsProperty>().cloned())
@@ -55,7 +55,7 @@ impl DataProvider<PropertyScriptWithExtensionsV1> for SourceDataProvider {
 
                 let mut char_with_extensions = HashMap::new();
 
-                for line in self.parse_ucd_lines("ucd/ScriptExtensions.txt")? {
+                for line in self.rscd()?.parse_ucd_lines("ucd/ScriptExtensions.txt")? {
                     let Some(line) = line.skip_missing_rule() else {
                         continue;
                     };
@@ -118,7 +118,7 @@ impl DataProvider<PropertyScriptWithExtensionsV1> for SourceDataProvider {
 
                 let data = ScriptWithExtensionsProperty { trie, extensions };
 
-                self.unicode()?.cpt_cache.insert(
+                self.rscd()?.cpt_cache.insert(
                     core::str::from_utf8(Script::SHORT_NAME).unwrap(),
                     Box::new(data.clone()),
                 );
