@@ -15,20 +15,32 @@ use icu_locale_core::LanguageIdentifier;
 use icu_locale_core::subtags::{Language, Region, Script, Variant};
 use icu_pattern::{DoublePlaceholderPattern, DoublePlaceholderValueProviderTry, PatternItem};
 use icu_provider::DataPayloadOr;
+use icu_provider::marker::ErasedMarker;
 use icu_provider::prelude::*;
 use tinystr::TinyAsciiStr;
 use writeable::LengthHint;
 use writeable::{PartsWrite, TryWriteable, adapters::LossyWrap};
+use zerovec::VarZeroCow;
 
 /// An error returned when a display name was not found in data and has fallen back to the raw BCP-47 subtag code.
 #[derive(displaydoc::Display, Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[allow(clippy::exhaustive_structs)]
 pub struct LanguageIdentifierNameFallbackError;
 
+/// A data struct that is either [`MenuNameParts`] or a string
+#[derive(Debug, PartialEq, Clone, yoke::Yokeable, zerofrom::ZeroFrom)]
+#[allow(clippy::exhaustive_enums)] // provider-unstable
+enum MenuNamePartsOrString<'a> {
+    /// A data struct that is [`MenuNameParts`]
+    MenuNameParts(VarZeroCow<'a, MenuNamePartsULE>),
+    /// A data struct that is a string
+    String(VarZeroCow<'a, str>),
+}
+
 size_test!(
     LanguageIdentifierDisplayNameOwned,
     language_identifier_display_name_owned_size,
-    184
+    192
 );
 
 /// A localized display name for a language identifier, owned version.
@@ -36,7 +48,7 @@ size_test!(
 /// The formatter falls back to the BCP-47 subtag when localized display names are missing
 /// from the data provider. Fallback can be detected using [`TryWriteable`].
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use icu::experimental::displaynames::{
@@ -98,7 +110,7 @@ size_test!(
 #[derive(Debug)]
 pub struct LanguageIdentifierDisplayNameOwned {
     /// Either the language display name or the subtag as fallback
-    language_payload: DataPayloadOr<LocaleNamesLanguageMediumV1, Language>,
+    language_payload: DataPayloadOr<ErasedMarker<MenuNamePartsOrString<'static>>, Language>,
     /// All other fields (shared between Standard and Menu)
     qualifiers: QualifiersOwned,
 }
@@ -159,14 +171,107 @@ impl LanguageIdentifierDisplayNameOwned {
 
         // If the language name is not loaded yet, try loading it from the language subtag alone.
         let language_payload = match language_payload {
-            Some(response) => DataPayloadOr::from_payload(response.payload),
+            Some(response) => DataPayloadOr::from_payload(
+                response
+                    .payload
+                    .map_project(|payload, _| MenuNamePartsOrString::String(payload)),
+            ),
             None => {
                 match Self::load_language_subtag_name(
                     provider,
                     &formatting_locale,
                     subject.language,
                 )? {
-                    Some(response) => DataPayloadOr::from_payload(response.payload),
+                    Some(response) => DataPayloadOr::from_payload(
+                        response
+                            .payload
+                            .map_project(|payload, _| MenuNamePartsOrString::String(payload)),
+                    ),
+                    None => DataPayloadOr::from_other(subject.language),
+                }
+            }
+        };
+
+        // Load the remaining data
+        let qualifiers = QualifiersOwned::try_new_unstable(provider, prefs, subject)?;
+
+        Ok(Self {
+            language_payload,
+            qualifiers,
+        })
+    }
+
+    icu_provider::gen_buffer_data_constructors!(
+        (prefs: DisplayNamesPreferences, subject: LanguageIdentifier, options: LanguageIdentifierDisplayNameOptions) -> result: Result<Self, DataError>,
+        /// Loads the menu-style language display name for a given language identifier and locale using compiled data.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use icu::experimental::displaynames::{
+        ///     DisplayNamesPreferences, LanguageIdentifierDisplayNameOptions, single::LanguageIdentifierDisplayNameOwned,
+        /// };
+        /// use icu::locale::{locale, langid};
+        /// use writeable::assert_try_writeable_eq;
+        ///
+        /// let prefs = DisplayNamesPreferences::from(locale!("en"));
+        /// let options = LanguageIdentifierDisplayNameOptions::default();
+        /// let display_name = LanguageIdentifierDisplayNameOwned::try_new_menu(
+        ///     prefs,
+        ///     langid!("fr-CA"),
+        ///     options,
+        /// )
+        /// .expect("Data should load successfully");
+        ///
+        /// assert_try_writeable_eq!(display_name.as_borrowed(), "French (Canada)", Ok(()));
+        /// ```
+        functions: [
+            try_new_menu,
+            try_new_menu_with_buffer_provider,
+            try_new_menu_unstable,
+            Self
+        ]
+    );
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_menu)]
+    pub fn try_new_menu_unstable<D>(
+        provider: &D,
+        prefs: DisplayNamesPreferences,
+        subject: LanguageIdentifier,
+        _options: LanguageIdentifierDisplayNameOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<LocaleNamesLanguageMenuMediumV1>
+            + DataProvider<LocaleNamesLanguageMediumV1>
+            + DataProvider<LocaleNamesScriptMediumV1>
+            + DataProvider<LocaleNamesRegionMediumV1>
+            + DataProvider<LocaleNamesVariantMediumV1>
+            + DataProvider<LocaleNamesEssentialsV1>,
+    {
+        let formatting_locale = LocaleNamesLanguageMediumV1::make_locale(prefs.locale_preferences);
+
+        // Step 1: Load language name
+        // Try the menu name
+        let language_payload =
+            Self::load_language_menu_name(provider, &formatting_locale, subject.language)?;
+
+        // If the language name is not loaded yet, try loading it from the language subtag alone.
+        let language_payload = match language_payload {
+            Some(response) => {
+                DataPayloadOr::from_payload(response.payload.map_project(|menu_ule, _phantom| {
+                    MenuNamePartsOrString::MenuNameParts(menu_ule)
+                }))
+            }
+            None => {
+                match Self::load_language_subtag_name(
+                    provider,
+                    &formatting_locale,
+                    subject.language,
+                )? {
+                    Some(response) => DataPayloadOr::from_payload(response.payload.map_project(
+                        |subtag_name, _phantom| MenuNamePartsOrString::String(subtag_name),
+                    )),
                     None => DataPayloadOr::from_other(subject.language),
                 }
             }
@@ -251,6 +356,29 @@ impl LanguageIdentifierDisplayNameOwned {
         P: ?Sized + DataProvider<LocaleNamesLanguageMediumV1>,
     {
         let mut buffer = TinyAsciiStr::EMPTY;
+        let attrs = LocaleNamesLanguageMediumV1::make_attributes(language, None, None, &mut buffer);
+        provider
+            .load(DataRequest {
+                id: DataIdentifierBorrowed::for_marker_attributes_and_locale(
+                    attrs,
+                    formatting_locale,
+                ),
+                ..Default::default()
+            })
+            .allow_identifier_not_found()
+    }
+
+    /// Loads the name for a language with menu core and extension parts.
+    fn load_language_menu_name<P>(
+        provider: &P,
+        formatting_locale: &DataLocale,
+        language: Language,
+    ) -> Result<Option<DataResponse<LocaleNamesLanguageMenuMediumV1>>, DataError>
+    where
+        P: ?Sized + DataProvider<LocaleNamesLanguageMenuMediumV1>,
+    {
+        let mut buffer = TinyAsciiStr::EMPTY;
+        // NOTE: Menu and non-Menu use the same attributes
         let attrs = LocaleNamesLanguageMediumV1::make_attributes(language, None, None, &mut buffer);
         provider
             .load(DataRequest {
@@ -362,14 +490,21 @@ impl LanguageIdentifierDisplayNameOwned {
     /// Returns a borrowed version of this display name
     /// suitable for writing out to a string.
     pub fn as_borrowed(&self) -> LanguageIdentifierDisplayName<'_> {
+        let mut qualifiers = self.qualifiers.as_borrowed();
         let base_name = match self.language_payload.get() {
-            Ok(p) => NameOrFallback(Ok(p.as_ref())),
+            Ok(MenuNamePartsOrString::String(string)) => NameOrFallback(Ok(string.as_ref())),
+            Ok(MenuNamePartsOrString::MenuNameParts(parts)) => {
+                if !parts.extension().is_empty() {
+                    qualifiers.menu_extension = Some(parts.extension());
+                }
+                NameOrFallback(Ok(parts.core()))
+            }
             Err(lang) => NameOrFallback(Err(lang.as_str())),
         };
 
         LanguageIdentifierDisplayName(LossyWrap(LanguageIdentifierDisplayNameInner {
             base_name,
-            qualifiers: self.qualifiers.as_borrowed(),
+            qualifiers,
         }))
     }
 }
@@ -395,6 +530,7 @@ impl QualifiersOwned {
         };
 
         QualifiersBorrowed {
+            menu_extension: None,
             script,
             region,
             variants,
@@ -459,6 +595,7 @@ writeable::impl_display_with_writeable!(LanguageIdentifierDisplayName<'_>);
 
 #[derive(Debug, Copy, Clone)]
 struct QualifiersBorrowed<'a> {
+    menu_extension: Option<&'a str>,
     script: Option<NameOrFallback<'a>>,
     region: Option<NameOrFallback<'a>>,
     variants: BorrowedVariants<'a>,
@@ -479,7 +616,10 @@ impl<'a> QualifiersBorrowed<'a> {
     }
 
     fn is_empty(&self) -> bool {
-        self.script.is_none() && self.region.is_none() && self.variants.is_empty()
+        self.menu_extension.is_none()
+            && self.script.is_none()
+            && self.region.is_none()
+            && self.variants.is_empty()
     }
 }
 
@@ -493,6 +633,11 @@ impl<'a> TryWriteable for QualifiersBorrowed<'a> {
         // TODO: See whether we can share this code with the list component.
         let mut first = true;
         let separator_str = self.separator_str();
+
+        if let Some(menu_extension) = self.menu_extension {
+            sink.write_str(menu_extension)?;
+            first = false;
+        }
 
         let mut write_item = |sink: &mut S,
                               res: NameOrFallback|
@@ -535,6 +680,10 @@ impl<'a> TryWriteable for QualifiersBorrowed<'a> {
     fn writeable_length_hint(&self) -> LengthHint {
         let mut length_hint = LengthHint::exact(0);
         let mut num_items = 0;
+        if let Some(menu_extension) = self.menu_extension {
+            length_hint += writeable::Writeable::writeable_length_hint(&menu_extension);
+            num_items += 1;
+        }
         if let Some(script) = self.script {
             length_hint += script.writeable_length_hint();
             num_items += 1;
