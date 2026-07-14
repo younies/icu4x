@@ -9,4 +9,5 @@ pub mod extended;
 pub mod fractions;
 mod fractions_ule;
 pub mod patterns;
+pub mod symbols;
 pub mod ule;

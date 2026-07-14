@@ -7,7 +7,7 @@ use zerovec::{
     ule::{AsULE, ULE, UleError},
 };
 
-use crate::dimension::provider::currency::essentials::{
+use crate::dimension::provider::currency::symbols::{
     CurrencyPatternConfig, PatternSelection, PlaceholderValue,
 };
 
