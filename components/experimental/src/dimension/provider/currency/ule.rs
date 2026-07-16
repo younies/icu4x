@@ -8,14 +8,14 @@ use zerovec::{
 };
 
 use crate::dimension::provider::currency::symbols::{
-    CurrencyPatternConfig, PatternSelection, PlaceholderValue,
+    CurrencyPatternConfig, CurrencySymbol, PatternSelection,
 };
 
-const NO_PLACEHOLDER: u16 = 0b0111_1111_1111; // decimal: 2047
+const NO_SYMBOL: u16 = 0b0111_1111_1111; // decimal: 2047
 const USE_ISO_CODE: u16 = 0b0111_1111_1110; // decimal: 2046
 
 // TODO(#4013): Remove this constant once we have an invariant that the injecting text index is always less than 2046.
-pub const MAX_PLACEHOLDER_INDEX: u16 = 0b0111_1111_1101; // decimal: 2045
+pub const MAX_SYMBOL_INDEX: u16 = 0b0111_1111_1101; // decimal: 2045
 
 /// [`CurrencyPatternConfigULE`] is a type optimized for efficient storing and
 /// deserialization of [`CurrencyPatternConfig`] using the `ZeroVec` model.
@@ -28,8 +28,8 @@ pub const MAX_PLACEHOLDER_INDEX: u16 = 0b0111_1111_1101; // decimal: 2045
 /// The second bit (b6) is used to determine the `narrow_pattern_selection`. If the bit is `0`, then, the value will be `Standard`.
 /// If the bit is `1`, then, the value will be `StandardAlphaNextToNumber`.
 ///
-/// The next three bits (b5, b4 & b3) with the second byte is used to determine the `short_placeholder_value`.
-/// The next three bits (b2, b1 & b0) with the third byte is used to determine the `narrow_placeholder_value`.
+/// The next three bits (b5, b4 & b3) with the second byte is used to determine the `short_symbol`.
+/// The next three bits (b2, b1 & b0) with the third byte is used to determine the `narrow_symbol`.
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
 pub struct CurrencyPatternConfigULE([u8; 3]);
@@ -72,34 +72,34 @@ impl AsULE for CurrencyPatternConfig {
             first_byte_ule |= 0b1 << PATTERN_NARROW_SHIFT;
         }
 
-        // For short_placeholder_value
+        // For short_symbol
         let [
             short_most_significant_byte,
             short_least_significant_byte_ule,
-        ] = match self.short_placeholder_value {
-            Some(PlaceholderValue::Index(index)) => index.to_be_bytes(),
-            Some(PlaceholderValue::ISO) => USE_ISO_CODE.to_be_bytes(),
-            None => NO_PLACEHOLDER.to_be_bytes(),
+        ] = match self.short_symbol {
+            Some(CurrencySymbol::Index(index)) => index.to_be_bytes(),
+            Some(CurrencySymbol::ISO) => USE_ISO_CODE.to_be_bytes(),
+            None => NO_SYMBOL.to_be_bytes(),
         };
         if short_most_significant_byte & 0b1111_1000 != 0 {
             panic!(
-                "short_placeholder_value is too large {short_most_significant_byte}, {short_least_significant_byte_ule}"
+                "short_symbol is too large {short_most_significant_byte}, {short_least_significant_byte_ule}"
             )
         }
         first_byte_ule |= short_most_significant_byte << INDEX_SHORT_SHIFT;
 
-        // For narrow_placeholder_value
+        // For narrow_symbol
         let [
             narrow_most_significant_byte,
             narrow_least_significant_byte_ule,
-        ] = match self.narrow_placeholder_value {
-            Some(PlaceholderValue::Index(index)) => index.to_be_bytes(),
-            Some(PlaceholderValue::ISO) => USE_ISO_CODE.to_be_bytes(),
-            None => NO_PLACEHOLDER.to_be_bytes(),
+        ] = match self.narrow_symbol {
+            Some(CurrencySymbol::Index(index)) => index.to_be_bytes(),
+            Some(CurrencySymbol::ISO) => USE_ISO_CODE.to_be_bytes(),
+            None => NO_SYMBOL.to_be_bytes(),
         };
         if narrow_most_significant_byte & 0b1111_1000 != 0 {
             panic!(
-                "narrow_placeholder_value is too large {narrow_most_significant_byte}, {narrow_least_significant_byte_ule}"
+                "narrow_symbol is too large {narrow_most_significant_byte}, {narrow_least_significant_byte_ule}"
             )
         }
         first_byte_ule |= narrow_most_significant_byte << INDEX_NARROW_SHIFT;
@@ -131,32 +131,32 @@ impl AsULE for CurrencyPatternConfig {
         let short_prefix = (first_byte & (0b111 << INDEX_SHORT_SHIFT)) >> INDEX_SHORT_SHIFT;
         let narrow_prefix = (first_byte & (0b111 << INDEX_NARROW_SHIFT)) >> INDEX_NARROW_SHIFT;
 
-        let short_placeholder_value = ((short_prefix as u16) << 8) | second_byte as u16;
-        let narrow_placeholder_value = ((narrow_prefix as u16) << 8) | third_byte as u16;
+        let short_symbol = ((short_prefix as u16) << 8) | second_byte as u16;
+        let narrow_symbol = ((narrow_prefix as u16) << 8) | third_byte as u16;
 
-        let short_placeholder_value = match short_placeholder_value {
-            NO_PLACEHOLDER => None,
-            USE_ISO_CODE => Some(PlaceholderValue::ISO),
+        let short_symbol = match short_symbol {
+            NO_SYMBOL => None,
+            USE_ISO_CODE => Some(CurrencySymbol::ISO),
             index => {
-                debug_assert!(index <= MAX_PLACEHOLDER_INDEX);
-                Some(PlaceholderValue::Index(index))
+                debug_assert!(index <= MAX_SYMBOL_INDEX);
+                Some(CurrencySymbol::Index(index))
             }
         };
 
-        let narrow_placeholder_value = match narrow_placeholder_value {
-            NO_PLACEHOLDER => None,
-            USE_ISO_CODE => Some(PlaceholderValue::ISO),
+        let narrow_symbol = match narrow_symbol {
+            NO_SYMBOL => None,
+            USE_ISO_CODE => Some(CurrencySymbol::ISO),
             index => {
-                debug_assert!(index <= MAX_PLACEHOLDER_INDEX);
-                Some(PlaceholderValue::Index(index))
+                debug_assert!(index <= MAX_SYMBOL_INDEX);
+                Some(CurrencySymbol::Index(index))
             }
         };
 
         CurrencyPatternConfig {
             short_pattern_selection,
             narrow_pattern_selection,
-            short_placeholder_value,
-            narrow_placeholder_value,
+            short_symbol,
+            narrow_symbol,
         }
     }
 }

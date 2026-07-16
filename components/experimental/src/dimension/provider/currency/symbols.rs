@@ -45,12 +45,12 @@ pub struct CurrencySymbols<'data> {
     #[cfg_attr(feature = "serde", serde(borrow))]
     pub pattern_config_map: ZeroMap<'data, UnvalidatedTinyAsciiStr<3>, CurrencyPatternConfig>,
 
-    /// A list of placeholders (strings), including short (`symbol`) and narrow (`symbol-narrow`)
+    /// A list of symbols, including short (`symbol`) and narrow (`symbol-narrow`)
     /// currency symbols (such as `$`, `€`, `US$`), referenced by index.
     ///
-    /// These values are retrieved using [`PlaceholderValue::Index`] stored in [`CurrencyPatternConfig`].
+    /// These values are retrieved using [`CurrencySymbol::Index`] stored in [`CurrencyPatternConfig`].
     #[cfg_attr(feature = "serde", serde(borrow))]
-    pub placeholders: VarZeroVec<'data, str>,
+    pub symbols: VarZeroVec<'data, str>,
 
     /// The fallback currency pattern configuration used
     /// when a specific currency's pattern is not found in the currency patterns map.
@@ -79,12 +79,12 @@ pub enum PatternSelection {
 #[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::symbols))]
 #[derive(Copy, Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 #[repr(u16)]
-pub enum PlaceholderValue {
-    /// The index of the placeholder in the placeholders list.
-    /// NOTE: the maximum value is `MAX_PLACEHOLDER_INDEX` which is 2045 (`0b0111_1111_1101`).
+pub enum CurrencySymbol {
+    /// The index of the symbol in the symbols list.
+    /// NOTE: the maximum value is `MAX_SYMBOL_INDEX` which is 2045 (`0b0111_1111_1101`).
     Index(u16),
 
-    /// The placeholder is the ISO code.
+    /// The symbol is the ISO code.
     ISO,
 }
 
@@ -115,13 +115,13 @@ pub struct CurrencyPatternConfig {
     /// Indicates which pattern to use for narrow currency formatting.
     pub narrow_pattern_selection: PatternSelection,
 
-    /// The placeholder value for short currency formatting.
-    /// If the value is `None`, this means that the short pattern does not have a placeholder.
-    pub short_placeholder_value: Option<PlaceholderValue>,
+    /// The symbol for short currency formatting.
+    /// If the value is `None`, this means that the short pattern does not have a symbol.
+    pub short_symbol: Option<CurrencySymbol>,
 
-    /// The placeholder value for narrow currency formatting.
-    /// If the value is `None`, this means that the narrow pattern does not have a placeholder.
-    pub narrow_placeholder_value: Option<PlaceholderValue>,
+    /// The symbol for narrow currency formatting.
+    /// If the value is `None`, this means that the narrow pattern does not have a symbol.
+    pub narrow_symbol: Option<CurrencySymbol>,
 }
 
 impl<'a> CurrencySymbols<'a> {
@@ -134,14 +134,14 @@ impl<'a> CurrencySymbols<'a> {
             .get_copied(&currency.0.to_unvalidated())
             .unwrap_or(self.default_pattern_config);
 
-        let placeholder_val = match width {
-            Width::Short => config.short_placeholder_value,
-            Width::Narrow => config.narrow_placeholder_value,
+        let symbol = match width {
+            Width::Short => config.short_symbol,
+            Width::Narrow => config.narrow_symbol,
         };
 
-        let currency_str = match placeholder_val {
-            Some(PlaceholderValue::Index(index)) => self.placeholders.get(index.into()),
-            Some(PlaceholderValue::ISO) | None => None,
+        let symbol = match symbol {
+            Some(CurrencySymbol::Index(index)) => self.symbols.get(index.into()),
+            Some(CurrencySymbol::ISO) | None => None,
         }
         .unwrap_or(currency.0.as_str());
 
@@ -150,6 +150,6 @@ impl<'a> CurrencySymbols<'a> {
             Width::Narrow => config.narrow_pattern_selection,
         };
 
-        (currency_str, pattern_selection)
+        (symbol, pattern_selection)
     }
 }

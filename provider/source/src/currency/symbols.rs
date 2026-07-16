@@ -17,7 +17,7 @@ use zerovec::VarZeroVec;
 use zerovec::ZeroMap;
 
 use icu::experimental::dimension::provider::currency::symbols::*;
-use icu::experimental::dimension::provider::currency::ule::MAX_PLACEHOLDER_INDEX;
+use icu::experimental::dimension::provider::currency::ule::MAX_SYMBOL_INDEX;
 use icu::properties::CodePointMapData;
 use icu::properties::props::{GeneralCategory, GeneralCategoryGroup};
 use icu_provider::DataProvider;
@@ -29,14 +29,14 @@ use icu_provider::prelude::*;
 ///    this means the return value will be `PatternSelection::StandardAlphaNextToNumber`
 ///    because the character closest to the number is a letter.
 /// NOTE:
-///   `placeholder_value` must not be empty.
+///   `symbol` must not be empty.
 fn currency_pattern_selection(
     provider: &SourceDataProvider,
     pattern: &NumberPattern,
-    placeholder_value: &str,
+    symbol: &str,
 ) -> Result<PatternSelection, DataError> {
-    if placeholder_value.is_empty() {
-        return Err(DataError::custom("Placeholder value must not be empty"));
+    if symbol.is_empty() {
+        return Err(DataError::custom("Symbol must not be empty"));
     }
 
     // TODO(#6064): Handle the negative sub pattern.
@@ -70,9 +70,9 @@ fn currency_pattern_selection(
         .get_set_for_value_group(GeneralCategoryGroup::Letter);
 
     let char_closer_to_number = if currency_sign_index < first_num_index {
-        placeholder_value.chars().next_back().unwrap()
+        symbol.chars().next_back().unwrap()
     } else if currency_sign_index > last_num_index {
-        placeholder_value.chars().next().unwrap()
+        symbol.chars().next().unwrap()
     } else {
         return Err(DataError::custom(
             "Currency sign must not be in the middle of the pattern",
@@ -154,94 +154,72 @@ fn extract_currency_symbols<'data>(
         BTreeMap::<UnvalidatedTinyAsciiStr<3>, CurrencyPatternConfig>::new();
     let mut currency_patterns_standard_next_to_num =
         BTreeMap::<UnvalidatedTinyAsciiStr<3>, CurrencyPatternConfig>::new();
-    let mut placeholders = Vec::<&str>::new();
-    let mut placeholders_checker_map = HashMap::<&str, u16>::new();
+    let mut symbols = Vec::<&str>::new();
+    let mut symbols_checker_map = HashMap::<&str, u16>::new();
 
-    fn intern_placeholder<'a>(
-        placeholder: &'a str,
+    fn intern_symbol<'a>(
+        symbol: &'a str,
         iso: &str,
-        placeholders: &mut Vec<&'a str>,
-        placeholders_checker_map: &mut HashMap<&'a str, u16>,
-    ) -> Result<PlaceholderValue, DataError> {
-        if let Some(&index) = placeholders_checker_map.get(placeholder) {
-            Ok(PlaceholderValue::Index(index))
-        } else if placeholder == iso {
-            Ok(PlaceholderValue::ISO)
+        symbols: &mut Vec<&'a str>,
+        symbols_checker_map: &mut HashMap<&'a str, u16>,
+    ) -> Result<CurrencySymbol, DataError> {
+        if let Some(&index) = symbols_checker_map.get(symbol) {
+            Ok(CurrencySymbol::Index(index))
+        } else if symbol == iso {
+            Ok(CurrencySymbol::ISO)
         } else {
-            let index = placeholders.len() as u16;
-            if index > MAX_PLACEHOLDER_INDEX {
-                return Err(DataError::custom(
-                    "placeholder value exceeded MAX_PLACEHOLDER_INDEX",
-                ));
+            let index = symbols.len() as u16;
+            if index > MAX_SYMBOL_INDEX {
+                return Err(DataError::custom("symbol index exceeded MAX_SYMBOL_INDEX"));
             }
-            placeholders.push(placeholder);
-            placeholders_checker_map.insert(placeholder, index);
-            Ok(PlaceholderValue::Index(index))
+            symbols.push(symbol);
+            symbols_checker_map.insert(symbol, index);
+            Ok(CurrencySymbol::Index(index))
         }
     }
 
     for (iso, currency_pattern) in currencies {
-        let short_placeholder_value = currency_pattern
+        let short_symbol = currency_pattern
             .short
             .as_ref()
-            .map(|p| {
-                intern_placeholder(
-                    p.as_str(),
-                    iso,
-                    &mut placeholders,
-                    &mut placeholders_checker_map,
-                )
-            })
+            .map(|p| intern_symbol(p.as_str(), iso, &mut symbols, &mut symbols_checker_map))
             .transpose()?;
 
-        let narrow_placeholder_value = currency_pattern
+        let narrow_symbol = currency_pattern
             .narrow
             .as_ref()
-            .map(|p| {
-                intern_placeholder(
-                    p.as_str(),
-                    iso,
-                    &mut placeholders,
-                    &mut placeholders_checker_map,
-                )
-            })
+            .map(|p| intern_symbol(p.as_str(), iso, &mut symbols, &mut symbols_checker_map))
             .transpose()?;
 
-        let determine_pattern_selection =
-            |placeholder_index: Option<PlaceholderValue>| -> Result<PatternSelection, DataError> {
-                currency_pattern_selection(
-                    provider,
-                    standard,
-                    match placeholder_index {
-                        Some(PlaceholderValue::Index(index)) => placeholders[index as usize],
-                        Some(PlaceholderValue::ISO) | None => iso.as_str(),
-                    },
-                )
-            };
-
-        let short_pattern_selection: PatternSelection =
-            determine_pattern_selection(short_placeholder_value)?;
-        let narrow_pattern_selection: PatternSelection =
-            determine_pattern_selection(narrow_placeholder_value)?;
+        let short_pattern_selection = currency_pattern_selection(
+            provider,
+            standard,
+            currency_pattern.short.as_ref().unwrap_or(iso),
+        )?;
+        let narrow_pattern_selection = currency_pattern_selection(
+            provider,
+            standard,
+            currency_pattern.narrow.as_ref().unwrap_or(iso),
+        )?;
 
         let currency_patterns = CurrencyPatternConfig {
             short_pattern_selection,
             narrow_pattern_selection,
-            short_placeholder_value,
-            narrow_placeholder_value,
+            short_symbol,
+            narrow_symbol,
         };
 
         let iso = TinyAsciiStr::try_from_str(iso).unwrap().to_unvalidated();
         match (short_pattern_selection, narrow_pattern_selection) {
             (PatternSelection::Standard, PatternSelection::Standard)
-                if short_placeholder_value.is_none() && narrow_placeholder_value.is_none() =>
+                if short_symbol.is_none() && narrow_symbol.is_none() =>
             {
                 currency_patterns_standard_none.insert(iso, currency_patterns);
             }
             (
                 PatternSelection::StandardAlphaNextToNumber,
                 PatternSelection::StandardAlphaNextToNumber,
-            ) if short_placeholder_value.is_none() && narrow_placeholder_value.is_none() => {
+            ) if short_symbol.is_none() && narrow_symbol.is_none() => {
                 currency_patterns_standard_next_to_num.insert(iso, currency_patterns);
             }
             _ => {
@@ -256,22 +234,22 @@ fn extract_currency_symbols<'data>(
             CurrencyPatternConfig {
                 short_pattern_selection: PatternSelection::StandardAlphaNextToNumber,
                 narrow_pattern_selection: PatternSelection::StandardAlphaNextToNumber,
-                short_placeholder_value: None,
-                narrow_placeholder_value: None,
+                short_symbol: None,
+                narrow_symbol: None,
             }
         } else {
             currency_patterns_map.extend(currency_patterns_standard_next_to_num);
             CurrencyPatternConfig {
                 short_pattern_selection: PatternSelection::Standard,
                 narrow_pattern_selection: PatternSelection::Standard,
-                short_placeholder_value: None,
-                narrow_placeholder_value: None,
+                short_symbol: None,
+                narrow_symbol: None,
             }
         };
 
     Ok(CurrencySymbols {
         pattern_config_map: ZeroMap::from_iter(currency_patterns_map.iter()),
-        placeholders: VarZeroVec::from(&placeholders),
+        symbols: VarZeroVec::from(&symbols),
         default_pattern_config,
     })
 }
