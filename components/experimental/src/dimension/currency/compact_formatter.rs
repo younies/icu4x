@@ -6,8 +6,8 @@ use crate::dimension::provider::currency::{essentials::*, extended::*, patterns:
 use icu_decimal::CompactDecimalFormatter;
 use icu_provider::prelude::*;
 
+use super::CurrencyCode;
 use super::formatter::{CurrencyFormatter, CurrencyFormatterPreferences};
-use super::{CurrencyCode, options::Width};
 
 impl CurrencyFormatter<CompactDecimalFormatter> {
     icu_provider::gen_buffer_data_constructors!(

@@ -278,97 +278,41 @@ fn extract_currency_symbols<'data>(
 
 #[test]
 fn test_symbols() {
+    use icu::experimental::dimension::currency::CurrencyCode;
+    use icu::experimental::dimension::provider::currency::symbols::Width;
     use icu::locale::langid;
     use tinystr::tinystr;
 
-    fn get_placeholders_of_currency(
-        iso_code: UnvalidatedTinyAsciiStr<3>,
-        locale: &DataResponse<CurrencySymbolsV1>,
-        placeholders: &VarZeroVec<'_, str>,
-    ) -> (String, String) {
-        let default = CurrencyPatternConfig {
-            short_pattern_selection: PatternSelection::Standard,
-            narrow_pattern_selection: PatternSelection::Standard,
-            short_placeholder_value: None,
-            narrow_placeholder_value: None,
-        };
-        let owned = locale.payload.get().to_owned();
-        let currency_pattern: CurrencyPatternConfig = owned
-            .pattern_config_map
-            .get_copied(&iso_code)
-            .unwrap_or(default);
-
-        let short_placeholder = match currency_pattern.short_placeholder_value {
-            Some(PlaceholderValue::Index(index)) => placeholders
-                .get(index as usize)
-                .unwrap_or(&iso_code.try_into_tinystr().unwrap())
-                .to_string(),
-            Some(PlaceholderValue::ISO) => iso_code.try_into_tinystr().unwrap().to_string(),
-            None => "".to_string(),
-        };
-
-        let narrow_placeholder = match currency_pattern.narrow_placeholder_value {
-            Some(PlaceholderValue::Index(index)) => placeholders
-                .get(index as usize)
-                .unwrap_or(&iso_code.try_into_tinystr().unwrap())
-                .to_string(),
-            Some(PlaceholderValue::ISO) => iso_code.try_into_tinystr().unwrap().to_string(),
-            None => "".to_string(),
-        };
-
-        (short_placeholder, narrow_placeholder)
-    }
-
+    const USD: CurrencyCode = CurrencyCode(tinystr!(3, "USD"));
+    const EGP: CurrencyCode = CurrencyCode(tinystr!(3, "EGP"));
     let provider = SourceDataProvider::new_testing();
 
-    let en: DataResponse<CurrencySymbolsV1> = provider
+    let en: DataPayload<CurrencySymbolsV1> = provider
         .load(DataRequest {
             id: DataIdentifierBorrowed::for_locale(&langid!("en").into()),
             ..Default::default()
         })
-        .unwrap();
+        .unwrap()
+        .payload;
 
-    let en_payload = en.payload.get();
+    assert_eq!(en.get().get(Width::Short, &USD).0, "$");
+    assert_eq!(en.get().get(Width::Narrow, &USD).0, "$");
 
-    let (en_usd_short, en_usd_narrow) = get_placeholders_of_currency(
-        tinystr!(3, "USD").to_unvalidated(),
-        &en,
-        &en_payload.placeholders,
-    );
-    assert_eq!(en_usd_short, "$");
-    assert_eq!(en_usd_narrow, "$");
-
-    let (en_egp_short, en_egp_narrow) = get_placeholders_of_currency(
-        tinystr!(3, "EGP").to_unvalidated(),
-        &en,
-        &en_payload.placeholders,
-    );
     // TODO(#6064)
-    assert_eq!(en_egp_short, "EGP");
-    assert_eq!(en_egp_narrow, "E£");
+    assert_eq!(en.get().get(Width::Short, &EGP).0, "EGP");
+    assert_eq!(en.get().get(Width::Narrow, &EGP).0, "E£");
 
-    let ar_eg: DataResponse<CurrencySymbolsV1> = provider
+    let ar_eg: DataPayload<CurrencySymbolsV1> = provider
         .load(DataRequest {
             id: DataIdentifierBorrowed::for_locale(&langid!("ar-EG").into()),
             ..Default::default()
         })
-        .unwrap();
+        .unwrap()
+        .payload;
 
-    let ar_eg_payload = ar_eg.payload.get();
+    assert_eq!(ar_eg.get().get(Width::Short, &EGP).0, "ج.م.\u{200f}");
+    assert_eq!(ar_eg.get().get(Width::Narrow, &EGP).0, "E£");
 
-    let (ar_eg_egp_short, ar_eg_egp_narrow) = get_placeholders_of_currency(
-        tinystr!(3, "EGP").to_unvalidated(),
-        &ar_eg,
-        &ar_eg_payload.placeholders,
-    );
-    assert_eq!(ar_eg_egp_short, "ج.م.\u{200f}");
-    assert_eq!(ar_eg_egp_narrow, "E£");
-
-    let (ar_eg_usd_short, ar_eg_usd_narrow) = get_placeholders_of_currency(
-        tinystr!(3, "USD").to_unvalidated(),
-        &ar_eg,
-        &ar_eg_payload.placeholders,
-    );
-    assert_eq!(ar_eg_usd_short, "US$");
-    assert_eq!(ar_eg_usd_narrow, "US$");
+    assert_eq!(ar_eg.get().get(Width::Short, &USD).0, "US$");
+    assert_eq!(ar_eg.get().get(Width::Narrow, &USD).0, "US$");
 }

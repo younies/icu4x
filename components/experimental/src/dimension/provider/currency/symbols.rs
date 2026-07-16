@@ -11,7 +11,6 @@ use tinystr::UnvalidatedTinyAsciiStr;
 use zerovec::{VarZeroVec, ZeroMap};
 
 use crate::dimension::currency::CurrencyCode;
-use crate::dimension::currency::options::Width;
 
 #[cfg(feature = "compiled_data")]
 /// Baked data
@@ -89,6 +88,22 @@ pub enum PlaceholderValue {
     ISO,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Width {
+    /// Format the currency with the standard (short) currency symbol.
+    ///
+    /// For example, 1 USD formats as "$1.00" in en-US and "US$1" in most other locales.
+    Short,
+
+    /// Format the currency with the narrow currency symbol.
+    ///
+    /// The narrow symbol may be ambiguous, so it should be evident from context which
+    /// currency is being represented.
+    ///
+    /// For example, 1 USD formats as "$1.00" in most locales.
+    Narrow,
+}
+
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
 #[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::symbols))]
@@ -113,11 +128,7 @@ impl<'a> CurrencySymbols<'a> {
     /// Returns the formatted currency name/symbol,
     /// the currency pattern for the given width and currency,
     /// and the pattern selection.
-    pub(crate) fn get(
-        &'a self,
-        width: Width,
-        currency: &'a CurrencyCode,
-    ) -> (&'a str, PatternSelection) {
+    pub fn get(&'a self, width: Width, currency: &'a CurrencyCode) -> (&'a str, PatternSelection) {
         let config = self
             .pattern_config_map
             .get_copied(&currency.0.to_unvalidated())

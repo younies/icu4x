@@ -13,11 +13,12 @@ use icu_provider::prelude::*;
 use writeable::Writeable;
 
 use super::super::provider::currency::{
-    essentials::CurrencyEssentialsV1, extended::CurrencyExtendedDataV1,
-    patterns::CurrencyPatternsDataV1, symbols::CurrencySymbolsV1,
+    essentials::CurrencyEssentialsV1,
+    extended::CurrencyExtendedDataV1,
+    patterns::CurrencyPatternsDataV1,
+    symbols::{CurrencySymbolsV1, Width},
 };
 use super::CurrencyCode;
-use super::options::Width;
 
 extern crate alloc;
 
