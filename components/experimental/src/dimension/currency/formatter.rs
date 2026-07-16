@@ -18,7 +18,6 @@ use super::super::provider::currency::{
 };
 use super::CurrencyCode;
 use super::options::Width;
-use icu_pattern::DoublePlaceholderPattern;
 
 extern crate alloc;
 
@@ -92,10 +91,6 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let symbols =
             load_with_fallback::<CurrencySymbolsV1>(&crate::provider::Baked, ids)?.payload;
 
-        if essential.get().standard_pattern().is_none() {
-            return Err(DataError::custom("missing standard pattern"));
-        }
-
         Ok(Self {
             value_formatter,
             currency_data: CurrencyFormatterData::Essential {
@@ -125,10 +120,6 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let ids = req_id.into_iter().chain(core::iter::once(default_id));
         let essential = load_with_fallback::<CurrencyEssentialsV1>(provider, ids.clone())?.payload;
         let symbols = load_with_fallback::<CurrencySymbolsV1>(provider, ids)?.payload;
-
-        if essential.get().standard_pattern().is_none() {
-            return Err(DataError::custom("missing standard pattern"));
-        }
 
         Ok(Self {
             value_formatter,
@@ -457,12 +448,9 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 currency,
             } => {
                 // TODO(#6064): Support plural-specific patterns and full currency formatting spec.
-                let (currency_str, pattern, _pattern_selection) =
-                    symbols
-                        .get()
-                        .name_and_pattern(essential.get(), *width, currency);
+                let (currency_str, pattern_selection) = symbols.get().get(*width, currency);
+                let pattern = essential.get().get_positive(pattern_selection, false);
 
-                let pattern = pattern.unwrap_or_else(|| <&DoublePlaceholderPattern>::default());
                 (pattern, currency_str)
             }
             CurrencyFormatterData::Long {

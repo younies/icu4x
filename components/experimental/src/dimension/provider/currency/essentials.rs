@@ -9,6 +9,7 @@
 use icu_provider::prelude::*;
 use zerovec::VarZeroVec;
 
+use crate::dimension::provider::currency::symbols::PatternSelection;
 use icu_pattern::DoublePlaceholderPattern;
 
 #[cfg(feature = "compiled_data")]
@@ -68,30 +69,34 @@ icu_provider::data_struct!(CurrencyEssentials<'_>, #[cfg(feature = "datagen")]);
 
 impl<'a> CurrencyEssentials<'a> {
     /// Returns the standard pattern.
-    pub fn standard_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn standard_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.standard as usize)
-            .or_else(|| self.patterns.get(0))
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Standard pattern index is out of bounds");
+                <&DoublePlaceholderPattern>::default()
+            })
     }
 
     /// Returns the standard negative pattern if specified.
-    pub fn standard_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn standard_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .standard_negative
             .and_then(|idx| self.patterns.get(idx as usize))
     }
 
     /// Returns the `standard_alpha_next_to_number` pattern, falling back to `standard_pattern` if not present.
-    pub fn standard_alpha_next_to_number_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn standard_alpha_next_to_number_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.standard_alpha_next_to_number as usize)
-            .or_else(|| self.standard_pattern())
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Standard alpha pattern index is out of bounds");
+                self.standard_pattern()
+            })
     }
 
     /// Returns the `standard_alpha_next_to_number` negative pattern if specified, falling back to standard negative.
-    pub fn standard_alpha_next_to_number_negative_pattern(
-        &self,
-    ) -> Option<&DoublePlaceholderPattern> {
+    fn standard_alpha_next_to_number_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .standard_alpha_next_to_number_negative
             .and_then(|idx| self.patterns.get(idx as usize))
@@ -99,35 +104,79 @@ impl<'a> CurrencyEssentials<'a> {
     }
 
     /// Returns the positive accounting pattern, falling back to `standard_pattern` if not present.
-    pub fn accounting_positive_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn accounting_positive_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.accounting_positive as usize)
-            .or_else(|| self.standard_pattern())
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Accounting pattern index is out of bounds");
+                self.standard_pattern()
+            })
     }
 
     /// Returns the negative accounting pattern if present.
-    pub fn accounting_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
-        self.indices
-            .accounting_negative
-            .and_then(|idx| self.patterns.get(idx as usize))
+    fn accounting_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+        self.indices.accounting_negative.and_then(|idx| {
+            self.patterns
+                .get(idx as usize)
+                .ok_or(())
+                .inspect_err(|()| {
+                    debug_assert!(false, "Accounting negative pattern index is out of bounds");
+                })
+                .ok()
+        })
     }
 
     /// Returns the positive `accounting_alpha_next_to_number` pattern, falling back to accounting or standard.
-    pub fn accounting_alpha_next_to_number_positive_pattern(
-        &self,
-    ) -> Option<&DoublePlaceholderPattern> {
+    fn accounting_alpha_next_to_number_positive_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.accounting_alpha_next_to_number_positive as usize)
-            .or_else(|| self.accounting_positive_pattern())
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Accounting alpha pattern index is out of bounds");
+                self.accounting_positive_pattern()
+            })
     }
 
     /// Returns the negative `accounting_alpha_next_to_number` pattern, falling back to `accounting_negative_pattern`.
-    pub fn accounting_alpha_next_to_number_negative_pattern(
+    fn accounting_alpha_next_to_number_negative_pattern(
         &self,
     ) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .accounting_alpha_next_to_number_negative
             .and_then(|idx| self.patterns.get(idx as usize))
             .or_else(|| self.accounting_negative_pattern())
+    }
+
+    pub fn get_positive(
+        &'a self,
+        pattern_selection: PatternSelection,
+        is_accounting: bool,
+    ) -> &'a DoublePlaceholderPattern {
+        match (pattern_selection, is_accounting) {
+            (PatternSelection::Standard, true) => self.accounting_positive_pattern(),
+            (PatternSelection::Standard, false) => self.standard_pattern(),
+            (PatternSelection::StandardAlphaNextToNumber, true) => {
+                self.accounting_alpha_next_to_number_positive_pattern()
+            }
+            (PatternSelection::StandardAlphaNextToNumber, false) => {
+                self.standard_alpha_next_to_number_pattern()
+            }
+        }
+    }
+
+    pub fn get_negative(
+        &'a self,
+        pattern_selection: PatternSelection,
+        is_accounting: bool,
+    ) -> Option<&'a DoublePlaceholderPattern> {
+        match (pattern_selection, is_accounting) {
+            (PatternSelection::Standard, true) => self.accounting_negative_pattern(),
+            (PatternSelection::Standard, false) => self.standard_negative_pattern(),
+            (PatternSelection::StandardAlphaNextToNumber, true) => {
+                self.accounting_alpha_next_to_number_negative_pattern()
+            }
+            (PatternSelection::StandardAlphaNextToNumber, false) => {
+                self.standard_alpha_next_to_number_negative_pattern()
+            }
+        }
     }
 }

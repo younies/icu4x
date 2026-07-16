@@ -10,9 +10,6 @@ use icu_provider::prelude::*;
 use tinystr::UnvalidatedTinyAsciiStr;
 use zerovec::{VarZeroVec, ZeroMap};
 
-use icu_pattern::DoublePlaceholderPattern;
-
-use super::essentials::CurrencyEssentials;
 use crate::dimension::currency::CurrencyCode;
 use crate::dimension::currency::options::Width;
 
@@ -116,16 +113,11 @@ impl<'a> CurrencySymbols<'a> {
     /// Returns the formatted currency name/symbol,
     /// the currency pattern for the given width and currency,
     /// and the pattern selection.
-    pub(crate) fn name_and_pattern(
+    pub(crate) fn get(
         &'a self,
-        essentials: &'a CurrencyEssentials<'a>,
         width: Width,
         currency: &'a CurrencyCode,
-    ) -> (
-        &'a str,
-        Option<&'a DoublePlaceholderPattern>,
-        PatternSelection,
-    ) {
+    ) -> (&'a str, PatternSelection) {
         let config = self
             .pattern_config_map
             .get_copied(&currency.0.to_unvalidated())
@@ -147,13 +139,6 @@ impl<'a> CurrencySymbols<'a> {
             Width::Narrow => config.narrow_pattern_selection,
         };
 
-        let pattern = match pattern_selection {
-            PatternSelection::Standard => essentials.standard_pattern(),
-            PatternSelection::StandardAlphaNextToNumber => {
-                essentials.standard_alpha_next_to_number_pattern()
-            }
-        };
-
-        (currency_str, pattern, pattern_selection)
+        (currency_str, pattern_selection)
     }
 }
