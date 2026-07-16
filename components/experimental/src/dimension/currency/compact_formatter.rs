@@ -2,12 +2,12 @@
 // called LICENSE at the top level of the ICU4X source tree
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
-use crate::dimension::provider::currency::{essentials::*, extended::*, patterns::*};
+use crate::dimension::provider::currency::{essentials::*, extended::*, patterns::*, symbols::*};
 use icu_decimal::CompactDecimalFormatter;
 use icu_provider::prelude::*;
 
+use super::CurrencyCode;
 use super::formatter::{CurrencyFormatter, CurrencyFormatterPreferences};
-use super::{CurrencyCode, options::Width};
 
 impl CurrencyFormatter<CompactDecimalFormatter> {
     icu_provider::gen_buffer_data_constructors!(
@@ -75,6 +75,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     where
         D: ?Sized
             + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalCompactShortV1>
             + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>
@@ -102,6 +103,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     where
         D: ?Sized
             + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalCompactShortV1>
             + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>

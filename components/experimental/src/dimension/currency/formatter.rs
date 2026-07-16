@@ -13,12 +13,12 @@ use icu_provider::prelude::*;
 use writeable::Writeable;
 
 use super::super::provider::currency::{
-    essentials::CurrencyEssentialsV1, extended::CurrencyExtendedDataV1,
+    essentials::CurrencyEssentialsV1,
+    extended::CurrencyExtendedDataV1,
     patterns::CurrencyPatternsDataV1,
+    symbols::{CurrencySymbolsV1, Width},
 };
 use super::CurrencyCode;
-use super::options::Width;
-use icu_pattern::DoublePlaceholderPattern;
 
 extern crate alloc;
 
@@ -48,6 +48,7 @@ prefs_convert!(
 pub(crate) enum CurrencyFormatterData {
     Essential {
         essential: DataPayload<CurrencyEssentialsV1>,
+        symbols: DataPayload<CurrencySymbolsV1>,
         width: Width,
         currency: CurrencyCode,
     },
@@ -86,16 +87,16 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let default_id = DataIdentifierBorrowed::for_locale(&locale);
         let ids = req_id.into_iter().chain(core::iter::once(default_id));
         let essential =
-            load_with_fallback::<CurrencyEssentialsV1>(&crate::provider::Baked, ids)?.payload;
-
-        if essential.get().standard_pattern().is_none() {
-            return Err(DataError::custom("missing standard pattern"));
-        }
+            load_with_fallback::<CurrencyEssentialsV1>(&crate::provider::Baked, ids.clone())?
+                .payload;
+        let symbols =
+            load_with_fallback::<CurrencySymbolsV1>(&crate::provider::Baked, ids)?.payload;
 
         Ok(Self {
             value_formatter,
             currency_data: CurrencyFormatterData::Essential {
                 essential,
+                symbols,
                 width,
                 currency,
             },
@@ -110,7 +111,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         width: Width,
     ) -> Result<Self, DataError>
     where
-        D: ?Sized + DataProvider<CurrencyEssentialsV1>,
+        D: ?Sized + DataProvider<CurrencyEssentialsV1> + DataProvider<CurrencySymbolsV1>,
     {
         let locale = CurrencyEssentialsV1::make_locale(prefs.locale_preferences);
         let decimal_prefs = DecimalFormatterPreferences::from(&prefs);
@@ -118,16 +119,14 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let req_id = decimal_prefs.nu_id(&locale);
         let default_id = DataIdentifierBorrowed::for_locale(&locale);
         let ids = req_id.into_iter().chain(core::iter::once(default_id));
-        let essential = load_with_fallback::<CurrencyEssentialsV1>(provider, ids)?.payload;
-
-        if essential.get().standard_pattern().is_none() {
-            return Err(DataError::custom("missing standard pattern"));
-        }
+        let essential = load_with_fallback::<CurrencyEssentialsV1>(provider, ids.clone())?.payload;
+        let symbols = load_with_fallback::<CurrencySymbolsV1>(provider, ids)?.payload;
 
         Ok(Self {
             value_formatter,
             currency_data: CurrencyFormatterData::Essential {
                 essential,
+                symbols,
                 width,
                 currency,
             },
@@ -286,6 +285,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     where
         D: ?Sized
             + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>,
     {
@@ -307,6 +307,7 @@ impl CurrencyFormatter<DecimalFormatter> {
     where
         D: ?Sized
             + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
             + DataProvider<icu_decimal::provider::DecimalDigitsV1>,
     {
@@ -443,14 +444,14 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         let (pattern, currency_str) = match &self.currency_data {
             CurrencyFormatterData::Essential {
                 essential,
+                symbols,
                 width,
                 currency,
             } => {
                 // TODO(#6064): Support plural-specific patterns and full currency formatting spec.
-                let (currency_str, pattern, _pattern_selection) =
-                    essential.get().name_and_pattern(*width, currency);
+                let (currency_str, pattern_selection) = symbols.get().get(*width, currency);
+                let pattern = essential.get().get_positive(pattern_selection, false);
 
-                let pattern = pattern.unwrap_or_else(|| <&DoublePlaceholderPattern>::default());
                 (pattern, currency_str)
             }
             CurrencyFormatterData::Long {

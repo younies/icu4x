@@ -7,13 +7,10 @@
 //! Read more about data providers: [`icu_provider`]
 
 use icu_provider::prelude::*;
-use tinystr::UnvalidatedTinyAsciiStr;
-use zerovec::{VarZeroVec, ZeroMap};
+use zerovec::VarZeroVec;
 
+use crate::dimension::provider::currency::symbols::PatternSelection;
 use icu_pattern::DoublePlaceholderPattern;
-
-use crate::dimension::currency::CurrencyCode;
-use crate::dimension::currency::options::Width;
 
 #[cfg(feature = "compiled_data")]
 /// Baked data
@@ -57,151 +54,49 @@ pub struct PatternIndices {
 #[derive(Clone, PartialEq, Debug, yoke::Yokeable, zerofrom::ZeroFrom)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path =  icu_experimental::dimension::provider::currency::essentials))]
+#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::essentials))]
 #[yoke(prove_covariance_manually)]
 pub struct CurrencyEssentials<'data> {
-    /// A mapping from 3-letter currency ISO codes to their [`CurrencyPatternConfig`].
-    #[cfg_attr(feature = "serde", serde(borrow))]
-    pub pattern_config_map: ZeroMap<'data, UnvalidatedTinyAsciiStr<3>, CurrencyPatternConfig>,
-
     /// A packed list of distinct currency patterns referenced by [`PatternIndices`].
     #[cfg_attr(feature = "serde", serde(borrow))]
     pub patterns: VarZeroVec<'data, DoublePlaceholderPattern>,
 
     /// Indices into `patterns` for each formatting variant.
     pub indices: PatternIndices,
-
-    /// A list of placeholders (strings), such as currency symbols, referenced by index.
-    ///
-    /// These values are retrieved using [`PlaceholderValue::Index`] stored in [`CurrencyPatternConfig`].
-    #[cfg_attr(feature = "serde", serde(borrow))]
-    pub placeholders: VarZeroVec<'data, str>,
-
-    /// The fallback currency pattern configuration used
-    /// when a specific currency's pattern is not found in the currency patterns map.
-    pub default_pattern_config: CurrencyPatternConfig,
 }
 
 icu_provider::data_struct!(CurrencyEssentials<'_>, #[cfg(feature = "datagen")]);
 
-#[zerovec::make_ule(PatternSelectionULE)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::essentials))]
-#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Default)]
-#[repr(u8)]
-pub enum PatternSelection {
-    /// Use the standard pattern.
-    #[default]
-    Standard = 0,
-
-    /// Use the `standard_alpha_next_to_number` pattern.
-    StandardAlphaNextToNumber = 1,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::essentials))]
-#[derive(Copy, Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-#[repr(u16)]
-pub enum PlaceholderValue {
-    /// The index of the placeholder in the placeholders list.
-    /// NOTE: the maximum value is `MAX_PLACEHOLDER_INDEX` which is 2045 (`0b0111_1111_1101`).
-    Index(u16),
-
-    /// The placeholder is the ISO code.
-    ISO,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::essentials))]
-#[derive(Copy, Debug, Clone, Default, PartialEq, PartialOrd, Eq, Ord)]
-pub struct CurrencyPatternConfig {
-    /// Indicates which pattern to use for short currency formatting.
-    pub short_pattern_selection: PatternSelection,
-
-    /// Indicates which pattern to use for narrow currency formatting.
-    pub narrow_pattern_selection: PatternSelection,
-
-    /// The placeholder value for short currency formatting.
-    /// If the value is `None`, this means that the short pattern does not have a placeholder.
-    pub short_placeholder_value: Option<PlaceholderValue>,
-
-    /// The placeholder value for narrow currency formatting.
-    /// If the value is `None`, this means that the narrow pattern does not have a placeholder.
-    pub narrow_placeholder_value: Option<PlaceholderValue>,
-}
-
 impl<'a> CurrencyEssentials<'a> {
-    /// Returns the formatted currency name/symbol,
-    /// the currency pattern for the given width and currency,
-    /// and the pattern selection.
-    pub(crate) fn name_and_pattern(
-        &'a self,
-        width: Width,
-        currency: &'a CurrencyCode,
-    ) -> (
-        &'a str,
-        Option<&'a DoublePlaceholderPattern>,
-        PatternSelection,
-    ) {
-        let config = self
-            .pattern_config_map
-            .get_copied(&currency.0.to_unvalidated())
-            .unwrap_or(self.default_pattern_config);
-
-        let placeholder_val = match width {
-            Width::Short => config.short_placeholder_value,
-            Width::Narrow => config.narrow_placeholder_value,
-        };
-
-        let currency = match placeholder_val {
-            Some(PlaceholderValue::Index(index)) => self.placeholders.get(index.into()),
-            Some(PlaceholderValue::ISO) | None => None,
-        }
-        .unwrap_or(currency.0.as_str());
-
-        let pattern_selection = match width {
-            Width::Short => config.short_pattern_selection,
-            Width::Narrow => config.narrow_pattern_selection,
-        };
-
-        let pattern = match pattern_selection {
-            PatternSelection::Standard => self.standard_pattern(),
-            PatternSelection::StandardAlphaNextToNumber => {
-                self.standard_alpha_next_to_number_pattern()
-            }
-        };
-
-        (currency, pattern, pattern_selection)
-    }
-
     /// Returns the standard pattern.
-    pub fn standard_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn standard_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.standard as usize)
-            .or_else(|| self.patterns.get(0))
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Standard pattern index is out of bounds");
+                <&DoublePlaceholderPattern>::default()
+            })
     }
 
     /// Returns the standard negative pattern if specified.
-    pub fn standard_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn standard_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .standard_negative
             .and_then(|idx| self.patterns.get(idx as usize))
     }
 
     /// Returns the `standard_alpha_next_to_number` pattern, falling back to `standard_pattern` if not present.
-    pub fn standard_alpha_next_to_number_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn standard_alpha_next_to_number_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.standard_alpha_next_to_number as usize)
-            .or_else(|| self.standard_pattern())
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Standard alpha pattern index is out of bounds");
+                self.standard_pattern()
+            })
     }
 
     /// Returns the `standard_alpha_next_to_number` negative pattern if specified, falling back to standard negative.
-    pub fn standard_alpha_next_to_number_negative_pattern(
-        &self,
-    ) -> Option<&DoublePlaceholderPattern> {
+    fn standard_alpha_next_to_number_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .standard_alpha_next_to_number_negative
             .and_then(|idx| self.patterns.get(idx as usize))
@@ -209,35 +104,79 @@ impl<'a> CurrencyEssentials<'a> {
     }
 
     /// Returns the positive accounting pattern, falling back to `standard_pattern` if not present.
-    pub fn accounting_positive_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+    fn accounting_positive_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.accounting_positive as usize)
-            .or_else(|| self.standard_pattern())
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Accounting pattern index is out of bounds");
+                self.standard_pattern()
+            })
     }
 
     /// Returns the negative accounting pattern if present.
-    pub fn accounting_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
-        self.indices
-            .accounting_negative
-            .and_then(|idx| self.patterns.get(idx as usize))
+    fn accounting_negative_pattern(&self) -> Option<&DoublePlaceholderPattern> {
+        self.indices.accounting_negative.and_then(|idx| {
+            self.patterns
+                .get(idx as usize)
+                .ok_or(())
+                .inspect_err(|()| {
+                    debug_assert!(false, "Accounting negative pattern index is out of bounds");
+                })
+                .ok()
+        })
     }
 
     /// Returns the positive `accounting_alpha_next_to_number` pattern, falling back to accounting or standard.
-    pub fn accounting_alpha_next_to_number_positive_pattern(
-        &self,
-    ) -> Option<&DoublePlaceholderPattern> {
+    fn accounting_alpha_next_to_number_positive_pattern(&self) -> &DoublePlaceholderPattern {
         self.patterns
             .get(self.indices.accounting_alpha_next_to_number_positive as usize)
-            .or_else(|| self.accounting_positive_pattern())
+            .unwrap_or_else(|| {
+                debug_assert!(false, "Accounting alpha pattern index is out of bounds");
+                self.accounting_positive_pattern()
+            })
     }
 
     /// Returns the negative `accounting_alpha_next_to_number` pattern, falling back to `accounting_negative_pattern`.
-    pub fn accounting_alpha_next_to_number_negative_pattern(
+    fn accounting_alpha_next_to_number_negative_pattern(
         &self,
     ) -> Option<&DoublePlaceholderPattern> {
         self.indices
             .accounting_alpha_next_to_number_negative
             .and_then(|idx| self.patterns.get(idx as usize))
             .or_else(|| self.accounting_negative_pattern())
+    }
+
+    pub fn get_positive(
+        &'a self,
+        pattern_selection: PatternSelection,
+        is_accounting: bool,
+    ) -> &'a DoublePlaceholderPattern {
+        match (pattern_selection, is_accounting) {
+            (PatternSelection::Standard, true) => self.accounting_positive_pattern(),
+            (PatternSelection::Standard, false) => self.standard_pattern(),
+            (PatternSelection::StandardAlphaNextToNumber, true) => {
+                self.accounting_alpha_next_to_number_positive_pattern()
+            }
+            (PatternSelection::StandardAlphaNextToNumber, false) => {
+                self.standard_alpha_next_to_number_pattern()
+            }
+        }
+    }
+
+    pub fn get_negative(
+        &'a self,
+        pattern_selection: PatternSelection,
+        is_accounting: bool,
+    ) -> Option<&'a DoublePlaceholderPattern> {
+        match (pattern_selection, is_accounting) {
+            (PatternSelection::Standard, true) => self.accounting_negative_pattern(),
+            (PatternSelection::Standard, false) => self.standard_negative_pattern(),
+            (PatternSelection::StandardAlphaNextToNumber, true) => {
+                self.accounting_alpha_next_to_number_negative_pattern()
+            }
+            (PatternSelection::StandardAlphaNextToNumber, false) => {
+                self.standard_alpha_next_to_number_negative_pattern()
+            }
+        }
     }
 }
