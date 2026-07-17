@@ -7,11 +7,11 @@
 //! Read more about data providers: [`icu_provider`]
 
 use icu_provider::prelude::*;
-use tinystr::UnvalidatedTinyAsciiStr;
-use zerovec::{VarZeroVec, ZeroMap};
+use tinystr::{TinyAsciiStr, tinystr};
+use zerovec::VarZeroCow;
+use zerovec::ule::vartuple::{VarTuple, VarTupleULE};
 
 use crate::dimension::currency::CurrencyCode;
-
 #[cfg(feature = "compiled_data")]
 /// Baked data
 ///
@@ -25,131 +25,60 @@ pub use crate::provider::Baked;
 icu_provider::data_marker!(
     /// Currency symbol data needed for short and narrow currency formatting.
     CurrencySymbolsV1,
-    CurrencySymbols<'static>
+    CurrencySymbol<'static>,
+    #[cfg(feature = "datagen")]
+    attributes_domain = "currency",
 );
 
-/// This type contains the symbol mappings for short and narrow currency formatting.
-///
-/// <div class="stab unstable">
-/// 🚧 This code is considered unstable; it may change at any time, in breaking or non-breaking ways,
-/// including in SemVer minor releases. While the serde representation of data structs is guaranteed
-/// to be stable, their Rust representation might not be. Use with caution.
-/// </div>
-#[derive(Clone, PartialEq, Debug, yoke::Yokeable, zerofrom::ZeroFrom)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
 #[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::symbols))]
-#[yoke(prove_covariance_manually)]
-pub struct CurrencySymbols<'data> {
-    /// A mapping from 3-letter currency ISO codes to their [`CurrencyPatternConfig`].
+#[derive(Debug, Clone, PartialEq, Eq, zerofrom::ZeroFrom, yoke::Yokeable)]
+
+pub struct CurrencySymbol<'a>(
+    #[doc(hidden)]
     #[cfg_attr(feature = "serde", serde(borrow))]
-    pub pattern_config_map: ZeroMap<'data, UnvalidatedTinyAsciiStr<3>, CurrencyPatternConfig>,
+    pub VarZeroCow<'a, VarTupleULE<u8, str>>,
+);
 
-    /// A list of symbols, including short (`symbol`) and narrow (`symbol-narrow`)
-    /// currency symbols (such as `$`, `€`, `US$`), referenced by index.
-    ///
-    /// These values are retrieved using [`CurrencySymbol::Index`] stored in [`CurrencyPatternConfig`].
-    #[cfg_attr(feature = "serde", serde(borrow))]
-    pub symbols: VarZeroVec<'data, str>,
+impl CurrencySymbol<'_> {
+    pub fn new(symbol: &str, starts_with_letter: bool, ends_with_letter: bool) -> Self {
+        let sized = (starts_with_letter as u8) << 1 | (ends_with_letter as u8);
+        let variable = VarZeroCow::from(symbol);
+        Self(VarZeroCow::from_encodeable(&VarTuple { sized, variable }))
+    }
 
-    /// The fallback currency pattern configuration used
-    /// when a specific currency's pattern is not found in the currency patterns map.
-    pub default_pattern_config: CurrencyPatternConfig,
-}
+    /// Returns true if the symbol starts with a letter.
+    pub fn starts_with_letter(&self) -> bool {
+        self.0.sized & 0b10 != 0
+    }
 
-icu_provider::data_struct!(CurrencySymbols<'_>, #[cfg(feature = "datagen")]);
+    /// Returns true if the symbol ends with a letter.
+    pub fn ends_with_letter(&self) -> bool {
+        self.0.sized & 0b01 != 0
+    }
 
-#[zerovec::make_ule(PatternSelectionULE)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::symbols))]
-#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Default)]
-#[repr(u8)]
-pub enum PatternSelection {
-    /// Use the standard pattern.
-    #[default]
-    Standard = 0,
-
-    /// Use the `standard_alpha_next_to_number` pattern.
-    StandardAlphaNextToNumber = 1,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::symbols))]
-#[derive(Copy, Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-#[repr(u16)]
-pub enum CurrencySymbol {
-    /// The index of the symbol in the symbols list.
-    /// NOTE: the maximum value is `MAX_SYMBOL_INDEX` which is 2045 (`0b0111_1111_1101`).
-    Index(u16),
-
-    /// The symbol is the ISO code.
-    ISO,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Width {
-    /// Format the currency with the standard (short) currency symbol.
-    ///
-    /// For example, 1 USD formats as "$1.00" in en-US and "US$1" in most other locales.
-    Short,
-
-    /// Format the currency with the narrow currency symbol.
-    ///
-    /// The narrow symbol may be ambiguous, so it should be evident from context which
-    /// currency is being represented.
-    ///
-    /// For example, 1 USD formats as "$1.00" in most locales.
-    Narrow,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "datagen", derive(serde::Serialize, databake::Bake))]
-#[cfg_attr(feature = "datagen", databake(path = icu_experimental::dimension::provider::currency::symbols))]
-#[derive(Copy, Debug, Clone, Default, PartialEq, PartialOrd, Eq, Ord)]
-pub struct CurrencyPatternConfig {
-    /// Indicates which pattern to use for short currency formatting.
-    pub short_pattern_selection: PatternSelection,
-
-    /// Indicates which pattern to use for narrow currency formatting.
-    pub narrow_pattern_selection: PatternSelection,
-
-    /// The symbol for short currency formatting.
-    /// If the value is `None`, this means that the short pattern does not have a symbol.
-    pub short_symbol: Option<CurrencySymbol>,
-
-    /// The symbol for narrow currency formatting.
-    /// If the value is `None`, this means that the narrow pattern does not have a symbol.
-    pub narrow_symbol: Option<CurrencySymbol>,
-}
-
-impl<'a> CurrencySymbols<'a> {
-    /// Returns the formatted currency name/symbol,
-    /// the currency pattern for the given width and currency,
-    /// and the pattern selection.
-    pub fn get(&'a self, width: Width, currency: &'a CurrencyCode) -> (&'a str, PatternSelection) {
-        let config = self
-            .pattern_config_map
-            .get_copied(&currency.0.to_unvalidated())
-            .unwrap_or(self.default_pattern_config);
-
-        let symbol = match width {
-            Width::Short => config.short_symbol,
-            Width::Narrow => config.narrow_symbol,
-        };
-
-        let symbol = match symbol {
-            Some(CurrencySymbol::Index(index)) => self.symbols.get(index.into()),
-            Some(CurrencySymbol::ISO) | None => None,
-        }
-        .unwrap_or(currency.0.as_str());
-
-        let pattern_selection = match width {
-            Width::Short => config.short_pattern_selection,
-            Width::Narrow => config.narrow_pattern_selection,
-        };
-
-        (symbol, pattern_selection)
+    /// Returns the symbol as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0.variable
     }
 }
+
+impl CurrencySymbolsV1 {
+    pub const SHORT: TinyAsciiStr<1> = tinystr!(1, "s");
+    pub const NARROW: TinyAsciiStr<1> = tinystr!(1, "n");
+
+    pub fn make_attributes(
+        currency: CurrencyCode,
+        width: TinyAsciiStr<1>,
+        buffer: &mut TinyAsciiStr<5>,
+    ) -> &DataMarkerAttributes {
+        *buffer = width
+            .concat::<1, 2>(tinystr!(1, "/"))
+            .concat::<3, 5>(currency.0);
+        // All valid
+        DataMarkerAttributes::try_from_str(buffer).unwrap()
+    }
+}
+
+icu_provider::data_struct!(CurrencySymbol<'_>, #[cfg(feature = "datagen")]);
