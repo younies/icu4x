@@ -19,19 +19,33 @@ mod tests {
     pub fn test_en_us() {
         let prefs = locale!("en-US").into();
         let currency_code = CurrencyCode(tinystr!(3, "USD"));
+        let accounting = CurrencyFormatterOptions {
+            usage: CurrencyUsage::Accounting,
+            ..Default::default()
+        };
 
         // Short / Symbol
         let fmt_symbol =
             CurrencyFormatter::try_new_symbol(prefs, currency_code, Default::default()).unwrap();
+        let fmt_symbol_accounting =
+            CurrencyFormatter::try_new_symbol(prefs, currency_code, accounting).unwrap();
         let positive_value = "12345.67".parse().unwrap();
         assert_writeable_eq!(
             fmt_symbol.format_fixed_decimal(&positive_value),
+            "$12,345.67"
+        );
+        assert_writeable_eq!(
+            fmt_symbol_accounting.format_fixed_decimal(&positive_value),
             "$12,345.67"
         );
         let negative_value = "-12345.67".parse().unwrap();
         assert_writeable_eq!(
             fmt_symbol.format_fixed_decimal(&negative_value),
             "-$12,345.67"
+        );
+        assert_writeable_eq!(
+            fmt_symbol_accounting.format_fixed_decimal(&negative_value),
+            "($12,345.67)"
         );
 
         // TODO(#8151): This should format to 2 decimal places ($123.46 or $123.00) once we use currency patterns.
@@ -48,13 +62,23 @@ mod tests {
         let fmt_symbol_narrow =
             CurrencyFormatter::try_new_symbol_narrow(prefs, currency_code, Default::default())
                 .unwrap();
+        let fmt_symbol_narrow_accounting =
+            CurrencyFormatter::try_new_symbol_narrow(prefs, currency_code, accounting).unwrap();
         assert_writeable_eq!(
             fmt_symbol_narrow.format_fixed_decimal(&positive_value),
             "$12,345.67"
         );
         assert_writeable_eq!(
+            fmt_symbol_narrow_accounting.format_fixed_decimal(&positive_value),
+            "$12,345.67"
+        );
+        assert_writeable_eq!(
             fmt_symbol_narrow.format_fixed_decimal(&negative_value),
             "-$12,345.67"
+        );
+        assert_writeable_eq!(
+            fmt_symbol_narrow_accounting.format_fixed_decimal(&negative_value),
+            "($12,345.67)"
         );
 
         // TODO(#8151): This should format to 2 decimal places ($123.46 or $123.00) once we use currency patterns.
@@ -285,13 +309,32 @@ mod tests {
     pub fn test_code() {
         let prefs_en = locale!("en-US").into();
         let currency_usd = CurrencyCode(tinystr!(3, "USD"));
+        let accounting = CurrencyFormatterOptions {
+            usage: CurrencyUsage::Accounting,
+            ..Default::default()
+        };
         let value = "12345.67".parse().unwrap();
+        let negative_value = "-12345.67".parse().unwrap();
 
         let fmt_code_en =
             CurrencyFormatter::try_new_code(prefs_en, currency_usd, Default::default()).unwrap();
+        let fmt_code_en_accounting =
+            CurrencyFormatter::try_new_code(prefs_en, currency_usd, accounting).unwrap();
         assert_writeable_eq!(
             fmt_code_en.format_fixed_decimal(&value),
             "USD\u{a0}12,345.67"
+        );
+        assert_writeable_eq!(
+            fmt_code_en_accounting.format_fixed_decimal(&value),
+            "USD\u{a0}12,345.67"
+        );
+        assert_writeable_eq!(
+            fmt_code_en.format_fixed_decimal(&negative_value),
+            "-USD\u{a0}12,345.67"
+        );
+        assert_writeable_eq!(
+            fmt_code_en_accounting.format_fixed_decimal(&negative_value),
+            "(USD\u{a0}12,345.67)"
         );
 
         let prefs_fr = locale!("fr-FR").into();
@@ -313,40 +356,5 @@ mod tests {
 
         let fmt_name = CurrencyFormatter::try_new_name(prefs_en, currency_xyz).unwrap();
         assert_writeable_eq!(fmt_name.format_fixed_decimal(&value), "12,345.67 XYZ");
-    }
-
-    #[test]
-    pub fn test_accounting() {
-        let prefs = locale!("en-US").into();
-        let currency_code = CurrencyCode(tinystr!(3, "USD"));
-        let options = CurrencyFormatterOptions {
-            usage: CurrencyUsage::Accounting,
-            ..Default::default()
-        };
-        let positive_value = "12345.67".parse().unwrap();
-        let negative_value = "-12345.67".parse().unwrap();
-
-        let fmt_symbol = CurrencyFormatter::try_new_symbol(prefs, currency_code, options).unwrap();
-        assert_writeable_eq!(
-            fmt_symbol.format_fixed_decimal(&positive_value),
-            "$12,345.67"
-        );
-        assert_writeable_eq!(
-            fmt_symbol.format_fixed_decimal(&negative_value),
-            "($12,345.67)"
-        );
-
-        let fmt_symbol_narrow =
-            CurrencyFormatter::try_new_symbol_narrow(prefs, currency_code, options).unwrap();
-        assert_writeable_eq!(
-            fmt_symbol_narrow.format_fixed_decimal(&negative_value),
-            "($12,345.67)"
-        );
-
-        let fmt_code = CurrencyFormatter::try_new_code(prefs, currency_code, options).unwrap();
-        assert_writeable_eq!(
-            fmt_code.format_fixed_decimal(&negative_value),
-            "(USD\u{a0}12,345.67)"
-        );
     }
 }

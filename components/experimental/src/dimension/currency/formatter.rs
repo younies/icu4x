@@ -619,7 +619,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     ///
     /// let locale = locale!("en-US").into();
     /// let currency_code = CurrencyCode(tinystr!(3, "USD"));
-    /// let fmt = CurrencyFormatter::try_new_compact_symbol(locale, currency_code).unwrap();
+    /// let fmt = CurrencyFormatter::try_new_compact_symbol(locale, currency_code, Default::default()).unwrap();
     /// let value = "12345.67".parse().unwrap();
     /// assert_writeable_eq!(fmt.format_fixed_decimal(&value), "$12K");
     /// ```
@@ -633,7 +633,12 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
     ///
     /// let currency_prefs = locale!("en-US").into();
     /// let currency_code = CurrencyCode(tinystr!(3, "USD"));
-    /// let fmt = CurrencyFormatter::try_new_compact_long_symbol(currency_prefs, currency_code).unwrap();
+    /// let fmt = CurrencyFormatter::try_new_compact_long_symbol(
+    ///     currency_prefs,
+    ///     currency_code,
+    ///     Default::default(),
+    /// )
+    /// .unwrap();
     /// let value = "12345.67".parse().unwrap();
     /// assert_writeable_eq!(fmt.format_fixed_decimal(&value), "$12 thousand");
     /// ```

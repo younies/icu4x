@@ -8,10 +8,15 @@ use icu_provider::prelude::*;
 
 use super::CurrencyCode;
 use super::formatter::{CurrencyFormatter, CurrencyFormatterPreferences};
+use super::options::CurrencyFormatterOptions;
 
 impl CurrencyFormatter<CompactDecimalFormatter> {
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
         functions: [
             try_new_compact_symbol: skip,
             try_new_compact_symbol_with_buffer_provider,
@@ -21,7 +26,11 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
         functions: [
             try_new_compact_symbol_narrow: skip,
             try_new_compact_symbol_narrow_with_buffer_provider,
@@ -31,7 +40,11 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
         functions: [
             try_new_compact_code: skip,
             try_new_compact_code_with_buffer_provider,
@@ -51,7 +64,11 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
         functions: [
             try_new_compact_long_symbol: skip,
             try_new_compact_long_symbol_with_buffer_provider,
@@ -61,7 +78,11 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
         functions: [
             try_new_compact_long_symbol_narrow: skip,
             try_new_compact_long_symbol_narrow_with_buffer_provider,
@@ -71,7 +92,11 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     );
 
     icu_provider::gen_buffer_data_constructors!(
-        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
         functions: [
             try_new_compact_long_code: skip,
             try_new_compact_long_code_with_buffer_provider,
@@ -99,13 +124,14 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     pub fn try_new_compact_symbol(
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         Self::try_new_essential(
             CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
-            Default::default(),
+            options,
         )
     }
 
@@ -118,13 +144,14 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     pub fn try_new_compact_symbol_narrow(
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         Self::try_new_essential(
             CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
-            Default::default(),
+            options,
         )
     }
 
@@ -137,12 +164,13 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     pub fn try_new_compact_code(
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         Self::try_new_code_internal(
             CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
-            Default::default(),
+            options,
         )
     }
 
@@ -172,13 +200,14 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     pub fn try_new_compact_long_symbol(
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         Self::try_new_essential(
             CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
-            Default::default(),
+            options,
         )
     }
 
@@ -191,13 +220,14 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     pub fn try_new_compact_long_symbol_narrow(
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         Self::try_new_essential(
             CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
-            Default::default(),
+            options,
         )
     }
 
@@ -210,12 +240,13 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
     pub fn try_new_compact_long_code(
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError> {
         Self::try_new_code_internal(
             CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
-            Default::default(),
+            options,
         )
     }
 
@@ -241,6 +272,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
         provider: &D,
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError>
     where
         D: ?Sized
@@ -261,7 +293,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
-            Default::default(),
+            options,
         )
     }
 
@@ -270,6 +302,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
         provider: &D,
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError>
     where
         D: ?Sized
@@ -290,7 +323,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
-            Default::default(),
+            options,
         )
     }
 
@@ -326,6 +359,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
         provider: &D,
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError>
     where
         D: ?Sized
@@ -346,7 +380,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
-            Default::default(),
+            options,
         )
     }
 
@@ -355,6 +389,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
         provider: &D,
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError>
     where
         D: ?Sized
@@ -375,7 +410,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
-            Default::default(),
+            options,
         )
     }
 
@@ -411,6 +446,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
         provider: &D,
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError>
     where
         D: ?Sized
@@ -429,7 +465,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             )?,
             prefs,
             currency_code,
-            Default::default(),
+            options,
         )
     }
 
@@ -438,6 +474,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
         provider: &D,
         prefs: CurrencyFormatterPreferences,
         currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
     ) -> Result<Self, DataError>
     where
         D: ?Sized
@@ -456,7 +493,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             )?,
             prefs,
             currency_code,
-            Default::default(),
+            options,
         )
     }
 }
