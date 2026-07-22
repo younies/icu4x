@@ -105,6 +105,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
+            Default::default(),
         )
     }
 
@@ -123,6 +124,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
+            Default::default(),
         )
     }
 
@@ -140,6 +142,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
+            Default::default(),
         )
     }
 
@@ -175,6 +178,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
+            Default::default(),
         )
     }
 
@@ -193,6 +197,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
+            Default::default(),
         )
     }
 
@@ -210,6 +215,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
             prefs,
             currency_code,
+            Default::default(),
         )
     }
 
@@ -255,6 +261,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
+            Default::default(),
         )
     }
 
@@ -283,6 +290,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
+            Default::default(),
         )
     }
 
@@ -338,6 +346,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::SHORT,
+            Default::default(),
         )
     }
 
@@ -366,6 +375,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             prefs,
             currency_code,
             CurrencySymbolsV1::NARROW,
+            Default::default(),
         )
     }
 
@@ -419,6 +429,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             )?,
             prefs,
             currency_code,
+            Default::default(),
         )
     }
 
@@ -445,6 +456,7 @@ impl CurrencyFormatter<CompactDecimalFormatter> {
             )?,
             prefs,
             currency_code,
+            Default::default(),
         )
     }
 }
