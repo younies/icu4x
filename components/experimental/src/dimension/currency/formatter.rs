@@ -7,7 +7,9 @@ use core::fmt::Display;
 use fixed_decimal::Decimal as FixedDecimal;
 use fixed_decimal::Sign;
 use icu_decimal::preferences::CompactDecimalFormatterPreferences;
-use icu_decimal::{AbstractFormatter, DecimalFormatter, DecimalFormatterPreferences};
+use icu_decimal::{
+    AbstractFormatter, CompactDecimalFormatter, DecimalFormatter, DecimalFormatterPreferences,
+};
 use icu_locale_core::preferences::{define_preferences, prefs_convert};
 use icu_plurals::{PluralRules, PluralRulesPreferences};
 use icu_provider::prelude::*;
@@ -77,7 +79,7 @@ pub(crate) enum CurrencyFormatterData {
 pub struct CurrencyFormatter<V: AbstractFormatter> {
     value_formatter: V,
     currency_data: CurrencyFormatterData,
-    options: CurrencyFormatterOptions,
+    usage: CurrencyUsage,
 }
 
 impl<V: AbstractFormatter> CurrencyFormatter<V> {
@@ -124,7 +126,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         Ok(Self {
             value_formatter,
             currency_data,
-            options,
+            usage: options.usage,
         })
     }
 
@@ -170,7 +172,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         Ok(Self {
             value_formatter,
             currency_data,
-            options,
+            usage: options.usage,
         })
     }
 
@@ -197,7 +199,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 essential,
                 currency,
             },
-            options,
+            usage: options.usage,
         })
     }
 
@@ -225,7 +227,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
                 essential,
                 currency,
             },
-            options,
+            usage: options.usage,
         })
     }
 
@@ -270,7 +272,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         Ok(Self {
             value_formatter,
             currency_data,
-            options: Default::default(),
+            usage: CurrencyUsage::default(),
         })
     }
 
@@ -322,7 +324,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         Ok(Self {
             value_formatter,
             currency_data,
-            options: Default::default(),
+            usage: CurrencyUsage::default(),
         })
     }
 }
@@ -589,6 +591,494 @@ impl CurrencyFormatter<DecimalFormatter> {
     }
 }
 
+impl CurrencyFormatter<CompactDecimalFormatter> {
+    icu_provider::gen_buffer_data_constructors!(
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
+        functions: [
+            try_new_compact_symbol: skip,
+            try_new_compact_symbol_with_buffer_provider,
+            try_new_compact_symbol_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
+        functions: [
+            try_new_compact_symbol_narrow: skip,
+            try_new_compact_symbol_narrow_with_buffer_provider,
+            try_new_compact_symbol_narrow_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
+        functions: [
+            try_new_compact_code: skip,
+            try_new_compact_code_with_buffer_provider,
+            try_new_compact_code_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        functions: [
+            try_new_compact_name: skip,
+            try_new_compact_name_with_buffer_provider,
+            try_new_compact_name_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
+        functions: [
+            try_new_compact_long_symbol: skip,
+            try_new_compact_long_symbol_with_buffer_provider,
+            try_new_compact_long_symbol_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
+        functions: [
+            try_new_compact_long_symbol_narrow: skip,
+            try_new_compact_long_symbol_narrow_with_buffer_provider,
+            try_new_compact_long_symbol_narrow_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (
+            prefs: CurrencyFormatterPreferences,
+            currency_code: CurrencyCode,
+            options: CurrencyFormatterOptions
+        ) -> error: DataError,
+        functions: [
+            try_new_compact_long_code: skip,
+            try_new_compact_long_code_with_buffer_provider,
+            try_new_compact_long_code_unstable,
+            Self
+        ]
+    );
+
+    icu_provider::gen_buffer_data_constructors!(
+        (prefs: CurrencyFormatterPreferences, currency_code: CurrencyCode) -> error: DataError,
+        functions: [
+            try_new_compact_long_name: skip,
+            try_new_compact_long_name_with_buffer_provider,
+            try_new_compact_long_name_unstable,
+            Self
+        ]
+    );
+
+    /// Creates a new [`CurrencyFormatter`] for compact short number formatting with short currency symbols from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_symbol(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError> {
+        Self::try_new_essential(
+            CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::SHORT,
+            options,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact short number formatting with narrow currency symbols from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_symbol_narrow(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError> {
+        Self::try_new_essential(
+            CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::NARROW,
+            options,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact short number formatting using the 3-letter ISO currency code from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_code(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError> {
+        Self::try_new_code_internal(
+            CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+            options,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact short number formatting with full currency display names from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_name(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+    ) -> Result<Self, DataError> {
+        Self::try_new_name_internal(
+            CompactDecimalFormatter::try_new_short((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact long number formatting with short currency symbols from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_long_symbol(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError> {
+        Self::try_new_essential(
+            CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::SHORT,
+            options,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact long number formatting with narrow currency symbols from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_long_symbol_narrow(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError> {
+        Self::try_new_essential(
+            CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::NARROW,
+            options,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact long number formatting using the 3-letter ISO currency code from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_long_code(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError> {
+        Self::try_new_code_internal(
+            CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+            options,
+        )
+    }
+
+    /// Creates a new [`CurrencyFormatter`] for compact long number formatting with full currency display names from compiled locale data.
+    ///
+    /// ✨ *Enabled with the `compiled_data` Cargo feature.*
+    ///
+    /// [📚 Help choosing a constructor](icu_provider::constructors)
+    #[cfg(feature = "compiled_data")]
+    pub fn try_new_compact_long_name(
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+    ) -> Result<Self, DataError> {
+        Self::try_new_name_internal(
+            CompactDecimalFormatter::try_new_long((&prefs).into(), Default::default())?,
+            prefs,
+            currency_code,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_symbol)]
+    pub fn try_new_compact_symbol_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactShortV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>,
+    {
+        Self::try_new_essential_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_short_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::SHORT,
+            options,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_symbol_narrow)]
+    pub fn try_new_compact_symbol_narrow_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactShortV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>,
+    {
+        Self::try_new_essential_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_short_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::NARROW,
+            options,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_name)]
+    pub fn try_new_compact_name_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyExtendedDataV1>
+            + DataProvider<CurrencyPatternsDataV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactShortV1>,
+    {
+        Self::try_new_name_internal_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_short_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_long_symbol)]
+    pub fn try_new_compact_long_symbol_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactLongV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>,
+    {
+        Self::try_new_essential_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_long_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::SHORT,
+            options,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_long_symbol_narrow)]
+    pub fn try_new_compact_long_symbol_narrow_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<CurrencySymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactLongV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>,
+    {
+        Self::try_new_essential_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_long_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+            CurrencySymbolsV1::NARROW,
+            options,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_long_name)]
+    pub fn try_new_compact_long_name_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyExtendedDataV1>
+            + DataProvider<CurrencyPatternsDataV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactLongV1>,
+    {
+        Self::try_new_name_internal_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_long_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_code)]
+    pub fn try_new_compact_code_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactShortV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>,
+    {
+        Self::try_new_code_internal_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_short_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+            options,
+        )
+    }
+
+    #[doc = icu_provider::gen_buffer_unstable_docs!(UNSTABLE, Self::try_new_compact_long_code)]
+    pub fn try_new_compact_long_code_unstable<D>(
+        provider: &D,
+        prefs: CurrencyFormatterPreferences,
+        currency_code: CurrencyCode,
+        options: CurrencyFormatterOptions,
+    ) -> Result<Self, DataError>
+    where
+        D: ?Sized
+            + DataProvider<CurrencyEssentialsV1>
+            + DataProvider<icu_decimal::provider::DecimalCompactLongV1>
+            + DataProvider<icu_decimal::provider::DecimalSymbolsV1>
+            + DataProvider<icu_decimal::provider::DecimalDigitsV1>
+            + DataProvider<icu_plurals::provider::PluralsCardinalV1>,
+    {
+        Self::try_new_code_internal_unstable(
+            provider,
+            CompactDecimalFormatter::try_new_long_unstable(
+                provider,
+                (&prefs).into(),
+                Default::default(),
+            )?,
+            prefs,
+            currency_code,
+            options,
+        )
+    }
+}
+
 impl<V: AbstractFormatter> CurrencyFormatter<V> {
     /// Formats a [`FixedDecimal`] value.
     ///
@@ -647,7 +1137,7 @@ impl<V: AbstractFormatter> CurrencyFormatter<V> {
         value: &'l FixedDecimal,
     ) -> impl Writeable + Display + 'l {
         let formatted_value = V::format_unsigned(&self.value_formatter, &value.absolute);
-        let accounting = self.options.usage == CurrencyUsage::Accounting;
+        let accounting = self.usage == CurrencyUsage::Accounting;
 
         // TODO(#8146): Evaluate if FixedDecimal is the correct input type or if we should use
         // an exact decimal/money representation.
@@ -710,23 +1200,26 @@ fn select_essentials_pattern<'a>(
     symbol_starts_with_letter: bool,
     symbol_ends_with_letter: bool,
 ) -> (&'a icu_pattern::DoublePlaceholderPattern, Sign) {
-    if accounting {
-        if sign == Sign::Negative
-            && let Some(pattern) = essentials
-                .get_negative_accounting(symbol_starts_with_letter, symbol_ends_with_letter)
-        {
+    if sign == Sign::Negative {
+        let negative_pattern = if accounting {
+            essentials.get_negative_accounting(symbol_starts_with_letter, symbol_ends_with_letter)
+        } else {
+            essentials.get_negative(symbol_starts_with_letter, symbol_ends_with_letter)
+        };
+        // An explicit negative pattern already encodes the sign (e.g. parentheses or
+        // a minus sign inside the pattern), so the sign is dropped to avoid prepending
+        // a redundant minus.
+        if let Some(pattern) = negative_pattern {
             return (pattern, Sign::None);
         }
-        return (
-            essentials.get_positive_accounting(symbol_starts_with_letter, symbol_ends_with_letter),
-            sign,
-        );
     }
 
-    (
-        essentials.get_positive(symbol_starts_with_letter, symbol_ends_with_letter),
-        sign,
-    )
+    let positive_pattern = if accounting {
+        essentials.get_positive_accounting(symbol_starts_with_letter, symbol_ends_with_letter)
+    } else {
+        essentials.get_positive(symbol_starts_with_letter, symbol_ends_with_letter)
+    };
+    (positive_pattern, sign)
 }
 
 // TODO: Discuss reusing the `load_with_fallback` helper from `icu_decimal`
