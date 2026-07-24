@@ -87,7 +87,7 @@ fn extract_currency_essentials<'data>(
             NumberPatternItem::DecimalSeparator => {
                 Some(PatternItemCow::Placeholder(DoublePlaceholderKey::Place0))
             }
-            // TODO: replace the sign characters with the localized plus/minus signs
+            // TODO(#8263): replace the sign characters with the localized plus/minus signs
             // from the decimal symbols data instead of the ASCII characters.
             NumberPatternItem::MinusSign => Some(PatternItemCow::Literal(Cow::Borrowed("-"))),
             NumberPatternItem::PlusSign => Some(PatternItemCow::Literal(Cow::Borrowed("+"))),
