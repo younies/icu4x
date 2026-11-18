@@ -142,15 +142,13 @@ The currency formatter already uses the second shape (`try_new_symbol`, `try_new
 
 #### Current implementation of the units data
 
-There are **15 total markers** (3 markers for each of the 5 categories). These categories classify how units are distributed across different regions:
+There are **15 markers**: 3 for each of the 5 categories. The three tiers say where CLDR's unit preferences use a unit:
 
-| Category | Description | Example Marker |
+| Tier | Which units | Example marker |
 | :--- | :--- | :--- |
-| **`Core`** | Units actively used in the locale's region according to CLDR unit preferences. | `UnitsNamesLengthCoreV1` |
-| **`Extended`** | Units not used in the local region, but used in other regions. | *N/A* |
-| **`Outlier`** | Units not used in any region's standard preferences. | *N/A* |
-
-
+| **`Core`** | Units that the preferences use in the locale's region | `UnitsNamesLengthCoreV1` |
+| **`Extended`** | Units that the preferences use only in other regions | `UnitsNamesLengthExtendedV1` |
+| **`Outlier`** | Units that the preferences don't use | `UnitsNamesLengthOutlierV1` |
 
 *   **Lookup Key:** A unit's entry is retrieved using the **locale** and a composite key made of
     1. The **width** 
@@ -158,61 +156,61 @@ There are **15 total markers** (3 markers for each of the 5 categories). These c
     3. E.g., `short-meter`.
 *   **Plural Forms:** The retrieved entry contains the formatting patterns, with one pattern mapped for each plural form.
 
-#### Problems with the Current implementation of the units data
+#### Problems with the current implementation of the units data
 
-##### 1. Manual creation for each category
+##### Problem 1: Each category's markers are written by hand
 
-* Each category data marker is written manually
+Each category data marker is written manually.
 
-##### 1. solution
+**Solution.** We need a code generator to generate all the markers.
 
-* We need a code generator to generate all the markers
-    * NOTE: in case CLDR changed one of the categories name, the marker name will be changed, the marker name should be change.
-        * This means that we need to reserve the old markers name and make them include the same data of the new category name, for example, `LengthV1` if renamded to `TallV1`, `LengthV1` and `TallV1` shall have the same data, so we keep the data markers exist and the data will be dedublicated.
+If CLDR renames a category, the marker names stay. The generator keeps a table from the CLDR category name to the Rust name. If we want the new name too, it is a type alias of the old marker, so there is one copy of the data. For example, if CLDR renamed `length` to `tall`:
 
+```rust
+pub type UnitsNamesTallCoreV1 = UnitsNamesLengthCoreV1;
+```
 
-##### 2. Data Representaion
+Two markers with the same data would not work here: the baked data removes duplicates inside one marker, not across two markers, so the data would be stored twice.
 
-1. The data is combining all the widthes together in the same marker and splitting the data will help in having a spilitted API based on the length
+ICU4X already keeps the old name of a renamed type as an alias. For example, in `components/calendar/src/cal/mod.rs`:
 
+```rust
+#[deprecated(since = "2.1.0", note = "use `KoreanTraditional`")]
+pub type Dangi = KoreanTraditional;
+```
 
+*Note: the type alias is a suggestion from an AI assistant, and it needs a review. ICU4X uses aliases for renamed types, but we found no renamed data marker that is kept this way.*
 
-##### 2. Solution
+##### Problem 2: Data representation
 
-* I propose to have a marker for each category based on the width,
-    * `UnitsNamesLengthLongCoreV1`
-    * `UnitsNamesLengthShortCoreV1`
+One marker holds all the widths together. Splitting the data by width will help in having an API that is split based on the width.
 
+**Solution.** I propose to have a marker for each category based on the width:
 
-##### 3. Data Split , core, extended and outlier
+* `UnitsNamesLengthLongCoreV1`
+* `UnitsNamesLengthShortCoreV1`
+* `UnitsNamesLengthNarrowCoreV1`
 
-* Distinguish between Core and Extended causing some issues
-    * There will be different data in `Core` based on the locale, which will not help in deduplication, especially in short and narrow data.
-    * when the locale fallback, it will reach always default `001` , which in some locales , like en-US, and `meter` , core will return the  `001` fallback instead failing to make the user to use `Extended`
+##### Problem 3: The split into `Core`, `Extended`, and `Outlier`
 
+Distinguishing between `Core` and `Extended` causes some issues:
 
-##### 3. Solution
+* There will be different data in `Core` based on the locale, which will not help in deduplication, especially in the short and narrow data.
+* With locale fallback, a request for `meter` in `Core` for `en-US` goes from `en-US` to `en` to `und`. `und` has a `Core` entry for `meter`, so the user gets the root name, and not an error that tells them to use `Extended`.
 
-* I propose to combine both the Core and Extended to be just `Core`, this will result to have only `Core` for all the units in unit prefernces and `Outliers` for the other units.
+**Solution.** I propose to combine `Core` and `Extended` into just `Core`. Then there is only `Core` for all the units in the unit preferences, and `Outlier` for the other units.
 
-##### 4. There is no split based on simple or non-simple unit
+##### Problem 4: There is no split based on simple or non-simple units
 
-This will come later, but we can discuss it here, as in the composed units formatting, we will need to have 
+This will come later, but we can discuss it here. To format composed units, we will need:
 
 1. composition rules
 2. simple units
 3. per-unit data
 
-##### 4. Solution
+**Solution.** I propose to split the units based on simplicity, for example `UnitsNamesLengthLongCoreSimpleV1` for simple units and `UnitsNamesLengthLongCoreNonSimpleV1` for non-simple units.
 
-I propose to have a split to the units based on simplicity, for example: `UnitsNamesLengthLongCoreSimpleV1` and `UnitsNamesLengthLongCoreV1` for non simple units
-
-Also, having the pre-unit data already in a marker, `UnitsPerunitLengthLongCoreSimpleV1` and `UnitsPerunitLengthLongCoreV1`
-
-
-
-
-
+For the per-unit data, I propose 3 markers in total, one per width, keyed by unit ID: `UnitsPerUnitLongV1`, `UnitsPerUnitShortV1`, and `UnitsPerUnitNarrowV1`. The same split as the names (22 categories, 3 widths, 2 tiers, and simple or non-simple) would give 264 per-unit markers, but in CLDR 49 only 28 units in 5 categories have a per-unit pattern.
 
 #### Current implementation of the measure units (`MeasureUnit`)
 
