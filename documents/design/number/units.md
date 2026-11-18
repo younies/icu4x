@@ -86,6 +86,14 @@ let value = Decimal::from_str("1000")?;
 formatter.format_fixed_decimal(&value); // "1,000 m²"
 ```
 
+##### Problems with the current API
+
+1. The categories are written by hand: the five category types and their 16 units.
+
+##### Solution
+
+1. We need a generator that generates the categories. The generator must also keep track of the category names, because CLDR can change or rename a category.
+
 #### Current implementation of the measure units (`MeasureUnit`)
 
 - A `MeasureUnit` is a list of single units and a constant for the denominator, such as the `100` in `liter-per-100-kilometer`.
