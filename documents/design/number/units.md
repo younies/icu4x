@@ -67,19 +67,52 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 2. The locale's plural rules, to pick the pattern for the number from this data entry. Note: the plural rules apply to all the lengths, `narrow`, `short`, and `long`.
 
 
-### Current Implementaion
+### Current implementation
 
-To be filled.
+The units code is in `icu_experimental`. It formats pre-built units in only five categories, which are written by hand: area, duration, length, mass, and volume.
 
-#### Current Implementation for API (categorized units)
-to be filled
+#### Current implementation of the API (categorized units)
 
-#### Current Implemetattion for the MeasurementUnits
-to be filled
+- The formatter is `CategorizedFormatter<C>`, where `C` is a category type such as `Length`. The category in the type decides which data the code refers to.
+- It has three constructors: `try_new_core`, `try_new_extended`, and `try_new_outlier`. Each takes the preferences (the locale and the numbering system), a unit of that category, and the options.
+- The only option is the width: long, short (the default), or narrow.
+- The formatter keeps the unit's patterns, a decimal formatter, and the plural rules. `format_fixed_decimal` picks the pattern with the plural rules and puts the formatted number in it.
+- Each constructor looks in more data than the one before it: `try_new_core` looks for the unit in the `Core` data, `try_new_extended` in `Core` and `Extended`, and `try_new_outlier` in `Core`, `Extended`, and `Outlier`.
 
-#### Current impoementaiont for the Units Data
+```rust
+let formatter = CategorizedFormatter::<Area>::try_new_core(
+    locale!("en-US").into(),
+    Area::square_meter(),
+    UnitsFormatterOptions::default(),
+)?;
+let value = Decimal::from_str("1000")?;
+formatter.format_fixed_decimal(&value); // "1,000 m²"
+```
 
-to be filled
+##### Problems with the current API
+
+1. The categories are written by hand: the five category types and their 16 units.
+
+##### Solution
+
+1. We need a generator that generates the categories. The generator must also keep track of the category names, because CLDR can change or rename a category.
+
+#### Current implementation of the measure units (`MeasureUnit`)
+
+- A `MeasureUnit` is a list of single units and a constant for the denominator, such as the `100` in `liter-per-100-kilometer`.
+- A single unit is a power, a prefix (SI or binary), and a unit ID. The unit ID is a `u16` from a table that is written by hand in the parser (`measure/parser/ids.rs`). The table has 157 units.
+- `MeasureUnit::try_from_str` parses any identifier, such as `meter-per-second`, and needs no data. But a parsed unit has no CLDR ID, which the formatter needs to find the unit's patterns, so it can't be formatted.
+- The formatter takes a `CategorizedMeasureUnit<C>`, which only comes from a constructor on the category type, such as `Length::meter()`. There are 16 constructors, written by hand: 10 for duration, 2 for mass, 2 for volume, 1 for length, and 1 for area.
+- Each constructor reads its unit ID from baked data, so it needs the `compiled_data` feature.
+
+#### Current implementation of the units data
+
+- **Names.** There are 15 markers, three for each of the five categories: `Core`, `Extended`, and `Outlier`, as in `UnitsNamesLengthCoreV1`.
+- **Which marker.** It depends on the locale's region. A unit is `Core` if CLDR's unit preferences use it in that region, `Extended` if they use it only in other regions, and `Outlier` if they don't use it.
+- **Key.** A unit's entry is found by the locale and a key made of the width and the CLDR unit ID, such as `short-meter`. The entry is the unit's patterns, one for each plural form.
+- **Unit IDs.** `UnitsIdV1` holds the unit ID of each unit in the parser table. The constructors read it.
+- **Composition patterns.** `UnitsEssentialsV1` holds the patterns for prefixes, powers, `per`, and `times`. Nothing reads it yet.
+- **Conversion.** `UnitsInfoV1` holds the conversion data. Formatting doesn't use it.
 
 
 
