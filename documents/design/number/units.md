@@ -1,6 +1,3 @@
-
-// we need to add style to the page so we can have colors to the section based on the depth, h1 dark black, h2 black, h3 blue, h4 green
-
 # Units in ICU4X: pre-built units, composed units, and their data
 
 | | |
@@ -105,3 +102,11 @@ to be filled
 ## Appendix A: How many users need composed units
 
 ## Appendix B: Data needed by each category in option 2
+
+<style>
+/* Heading colors by depth, for HackMD. GitHub shows this block as text. */
+.markdown-body h1 { color: #000000; }
+.markdown-body h2 { color: #333333; }
+.markdown-body h3 { color: #1967d2; }
+.markdown-body h4 { color: #188038; }
+</style>
