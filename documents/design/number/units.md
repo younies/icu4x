@@ -212,6 +212,34 @@ This will come later, but we can discuss it here. To format composed units, we w
 
 For the per-unit data, I propose 3 markers in total, one per width, keyed by unit ID: `UnitsPerUnitLongV1`, `UnitsPerUnitShortV1`, and `UnitsPerUnitNarrowV1`. The same split as the names (22 categories, 3 widths, 2 tiers, and simple or non-simple) would give 264 per-unit markers, but in CLDR 49 only 28 units in 5 categories have a per-unit pattern.
 
+##### Problem 5: The representation of the pre-built unit IDs
+
+Today the key of a unit's data entry contains the full CLDR ID of the pre-built unit, for example `kilogram`, `kilometer-per-hour`, or `mile-per-hour`.
+These long strings make the data marker keys bigger.
+
+**Solution.** I propose a fixed numeric ID for every pre-built unit, especially the simple ones. The IDs are auto-generated and never change:
+* A new unit gets a new ID.
+* A removed unit keeps its ID, and no other unit reuses it.
+
+
+The IDs need to be stored in one place, in a data marker or in generated code. Each time the generator runs, it reads the old IDs first, and then gives new IDs only to the new units.
+
+
+**How to do it in ICU4X.** ICU4X already has the two pieces:
+* `components/experimental/src/measure/parser/ids.rs` is a table from the name of a simple unit to its ID. It has 158 names, it is edited by hand, and its rule is "Identifiers are immutable".
+* `cargo make codegen` writes Rust files from text files that are checked in. For example, it writes `components/properties/src/enum_values.rs` from the files in `components/properties/data/`. `cargo make codegen-check` fails when the two are out of sync.
+Suggested steps:
+1. Add a checked-in text file with one line per unit: the ID, the CLDR name, and a flag for a removed unit. Its first version comes from today's `ids.rs`, so no existing ID changes.
+2. Add a step to `cargo make codegen` that reads this file and the CLDR unit list. It appends each new unit with the next free ID, flags a unit that CLDR removed, and never changes or deletes a line.
+3. The same step writes the Rust code from the file: the parser table for the simple units, and the `PrebuiltUnit` constants. A removed unit becomes a `#[deprecated]` constant.
+4. Datagen puts the ID in the key in place of the name: `short-85` where it is `short-meter` today, or just `85` with a marker per width.
+Notes:
+* The non-simple pre-built units, such as `kilometer-per-hour`, aren't in `ids.rs` today. They get new IDs after the existing ones.
+* The IDs go in generated code and not in a data marker, because the `PrebuiltUnit` constants need them at compile time. The `UnitsIdV1` marker is already filled from `ids.rs`.
+* The formatter takes the ID from the constant, so it doesn't need the name table at run time.
+
+> **_NOTE:_** "How to do it in ICU4X" is a suggestion from an AI assistant, and it needs a review.
+
 #### Current implementation of the measure units (`MeasureUnit`)
 
 `MeasureUnit` is a struct that holds the parts of a unit:
