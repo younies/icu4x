@@ -66,7 +66,7 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 ### Current implementation
 
-The units code is in `icu_experimental`. It formats pre-built units in five categories: area, duration, length, mass, and volume.
+The units code is in `icu_experimental`. It formats pre-built units in only five categories, which are written by hand: area, duration, length, mass, and volume.
 
 #### Current implementation of the API (categorized units)
 
