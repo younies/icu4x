@@ -38,18 +38,21 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 ## Requirements
 
-1. We need to support and format 
-    - pre-built units
-    - composed units (using `per-unit` data entry)
-    - mixed units
-    - locale aware units conversion
+1. We need to support and format:
+    - pre-built units,
+    - composed units, which also use the per-unit data entry (`perUnitPattern`),
+    - mixed units,
+    - units that are converted for the locale (locale-aware unit conversion).
 
-2. we need to support all the options needed for EcmaScript for each formatting are
-    - Length
-        - long, short or narrow
-        - NOTE: each category 
-    - rounding
-    - ...etc.
+2. We need to support every option that ECMAScript has for formatting a unit:
+    - Length (`unitDisplay`): long, short, or narrow.
+        - Note: each category (to be filled).
+    - Rounding and digits: integer, fraction, and significant digits, `roundingMode`, `roundingIncrement`, `roundingPriority`, and `trailingZeroDisplay`.
+    - Notation (`notation`): standard, scientific, engineering, or compact.
+    - Sign display (`signDisplay`).
+    - Grouping (`useGrouping`).
+    - Numbering system (`numberingSystem`).
+    - Output: a string, formatted parts, and ranges.
 
 ## Pre-built Units (example: `meter` and `kilogram`)
 
