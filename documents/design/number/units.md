@@ -47,7 +47,7 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
     - units that are converted for the locale (locale-aware unit conversion).
 
 2. We need to support every option that ECMAScript has for formatting a unit:
-    - Length (`unitDisplay`): long, short, or narrow.
+    - Width (`unitDisplay` in ECMAScript; CLDR calls it the length): long, short, or narrow.
         - Note: each category (to be filled).
     - Rounding and digits: integer, fraction, and significant digits, `roundingMode`, `roundingIncrement`, `roundingPriority`, and `trailingZeroDisplay`.
     - Notation (`notation`): standard, scientific, engineering, or compact.
@@ -63,8 +63,8 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 1. The unit's data entry from the CLDR data, found by:
     - the unit ID,
     - the locale,
-    - the length (`long`, `short`, or `narrow`).
-2. The locale's plural rules, to pick the pattern for the number from this data entry. Note: the plural rules apply to all the lengths, `narrow`, `short`, and `long`.
+    - the width (`long`, `short`, or `narrow`).
+2. The locale's plural rules, to pick the pattern for the number from this data entry. Note: the plural rules apply to all the widths, `narrow`, `short`, and `long`.
 
 
 ### Current implementation
