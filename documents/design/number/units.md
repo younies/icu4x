@@ -18,7 +18,7 @@
 | Simple unit | One unit without a prefix or a power | `pound`, `gram`; not `kilogram` | "Simple unit" |
 | Non-simple unit | A unit with a prefix or a power, or made of several units | `kilogram`, `square-meter`, `mile-per-hour` | "Complex unit", or "compound unit" |
 | Unit category | CLDR's group for a unit; the first part of a long unit ID such as `length-meter` | `length`, `speed`, `mass` | "unitType", or "grouping" |
-| Unit quantity | What a unit measures, from its base unit; often narrower than the category, and **not all the units has quantities** | `voltage` and `electric-current`; both are in the `electric` category | "Quantity" |
+| Unit quantity | What a unit measures, from its base unit; often narrower than the category, and not every unit has one: `generic` and some composed units don't | `voltage` and `electric-current`; both are in the `electric` category | "Quantity" |
 
 A pre-built unit can be simple (`meter`) or non-simple (`kilogram`). A composed unit is never [this is not true I think?]
 simple, because CLDR 49 has an entry for every simple unit.
@@ -48,7 +48,6 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 2. We need to support every option that ECMAScript has for formatting a unit:
     - Width (`unitDisplay` in ECMAScript; CLDR calls it the length): long, short, or narrow.
-        - Note: each category (to be filled).
     - Rounding and digits: integer, fraction, and significant digits, `roundingMode`, `roundingIncrement`, `roundingPriority`, and `trailingZeroDisplay`.
     - Notation (`notation`): standard, scientific, engineering, or compact.
     - Sign display (`signDisplay`).
