@@ -72,24 +72,24 @@ The units code is in `icu_experimental`. It formats pre-built units in only five
 
 #### Current implementation of the API (categorized units)
 
-##### 📌 Core Architecture
+##### Core architecture
 
-*   **Definition:** `CategorizedFormatter<C>` formats units for a specific category `C` (like `Length`, `speed`), which determines the underlying data used.
+*   **Definition:** `CategorizedFormatter<C>` formats units for a specific category `C` (like `Length` or `Mass`), which determines the underlying data used.
 *   **Settings:**
     *   **Inputs:** Takes preferences (locale + numbering system), a unit, and options.
-    *   **Options:** Only configures width—`short` (default), `long`, or `narrow`.
+    *   **Options:** only the width: `short` (the default), `long`, or `narrow`.
 
-##### 🔍 Constructor Lookup Hierarchy
+##### Constructor lookup order
 
 Each of the three constructors searches cumulative tiers of data to find the unit:
 
-| Constructor | Data Searched (Falls back in order) |
+| Constructor | Data searched, in order |
 | :--- | :--- |
 | **`try_new_core`** | `Core` |
-| **`try_new_extended`** | `Core` ➡️ `Extended` |
-| **`try_new_outlier`** | `Core` ➡️ `Extended` ➡️ `Outlier` |
+| **`try_new_extended`** | `Core`, then `Extended` |
+| **`try_new_outlier`** | `Core`, then `Extended`, then `Outlier` |
 
-###### 💻 Code Example
+**Code example**
 
 ```rust
 let formatter = CategorizedFormatter::<Area>::try_new_core(
@@ -107,40 +107,38 @@ formatter.format_fixed_decimal(&value);
 
 #### Problems with the current API
 
-##### 1. The categories are written by hand
+##### Problem 1: The categories are written by hand
 
-* The categories are written by hand: the five category types and their 16 units.
+The five category types and their 16 units are written by hand.
 
-##### 1. Solution
+**Solution.** We need a code generator that generates the categories.
 
-1. We need a code generator that generates the categories. 
-    * The generator must also keep track of the category names, because CLDR can change or rename a category.
-    * In the MeasureUnit section, we need to handle also generating the 
+* The generator must also keep track of the category names, because CLDR can change or rename a category.
+* The `MeasureUnit` section below covers generating the units of each category.
 
-##### 2. Naming 
-* Do we recommend the current name `CategorizedFormatter`?
+##### Problem 2: The name of the formatter
 
-##### 2. Solution
-* we can name it 
-    * `MeasureFormatter`
-    * `UnitFormatter`
-    * `PreBuiltUnitFormatter`
-    * ... etc.
+Do we recommend the current name `CategorizedFormatter`?
 
+**Solution.** We can name it:
 
-##### 3. Length does not has it own formatter
+* `MeasureFormatter`
+* `UnitFormatter`
+* `PrebuiltUnitFormatter`
+* ... etc.
 
-right now, width (like `long`, `short` and `narrow`) is passing by options, and it is better to split the data based on the width
+##### Problem 3: The width is an option, not part of the formatter
 
-##### 3. Solution
+Today the width (`long`, `short`, or `narrow`) is passed in the options. So every formatter ships the data of all three widths.
 
-Therefore, I propose to have a formatter based on the width
-* `CategorizedFormatterLong`
-* `CategorizedFormatterShort`
-* `CategorizedFormatterNarrow`
+**Solution.** Split the formatter by width. There are two ways to do it, and both let an app ship one width:
 
+| Choice | Example | Cost |
+| :--- | :--- | :--- |
+| Three formatter types | `CategorizedFormatterLong`, `CategorizedFormatterShort`, `CategorizedFormatterNarrow` | Three types to name, document, and keep the same |
+| Constructors per width on one type | `CategorizedFormatter::try_new_long_core` | More constructors on one type |
 
-
+The currency formatter already uses the second shape (`try_new_symbol`, `try_new_name`, `try_new_code`), so I propose that one.
 
 #### Current implementation of the units data
 
