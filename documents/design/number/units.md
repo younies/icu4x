@@ -1,6 +1,3 @@
-
-// we need to add style to the page so we can have colors to the section based on the depth, h1 dark black, h2 black, h3 blue, h4 green
-
 # Units in ICU4X: pre-built units, composed units, and their data
 
 | | |
@@ -43,18 +40,21 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 ## Requirements
 
-1. We need to support and format 
-    - pre-built units
-    - composed units (using `per-unit` data entry)
-    - mixed units
-    - locale aware units conversion
+1. We need to support and format:
+    - pre-built units,
+    - composed units, which also use the per-unit data entry (`perUnitPattern`),
+    - mixed units,
+    - units that are converted for the locale (locale-aware unit conversion).
 
-2. we need to support all the options needed for EcmaScript for each formatting are
-    - Length
-        - long, short or narrow
-        - NOTE: each category 
-    - rounding
-    - ...etc.
+2. We need to support every option that ECMAScript has for formatting a unit:
+    - Length (`unitDisplay`): long, short, or narrow.
+        - Note: each category (to be filled).
+    - Rounding and digits: integer, fraction, and significant digits, `roundingMode`, `roundingIncrement`, `roundingPriority`, and `trailingZeroDisplay`.
+    - Notation (`notation`): standard, scientific, engineering, or compact.
+    - Sign display (`signDisplay`).
+    - Grouping (`useGrouping`).
+    - Numbering system (`numberingSystem`).
+    - Output: a string, formatted parts, and ranges.
 
 ## Pre-built Units (example: `meter` and `kilogram`)
 
@@ -107,3 +107,11 @@ to be filled
 ## Appendix A: How many users need composed units
 
 ## Appendix B: Data needed by each category in option 2
+
+<style>
+/* Heading colors by depth, for HackMD. GitHub shows this block as text. */
+.markdown-body h1 { color: #000000; }
+.markdown-body h2 { color: #333333; }
+.markdown-body h3 { color: #1967d2; }
+.markdown-body h4 { color: #188038; }
+</style>
