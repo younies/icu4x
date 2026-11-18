@@ -20,6 +20,8 @@
 | Composed unit | A unit with no CLDR entry; formatted from other units' data and combining rules | `square-foot-per-hour` | A unit with a "generated translation" |
 | Simple unit | One unit without a prefix or a power | `pound`, `gram`; not `kilogram` | "Simple unit" |
 | Non-simple unit | A unit with a prefix or a power, or made of several units | `kilogram`, `square-meter`, `mile-per-hour` | "Complex unit", or "compound unit" |
+| Unit category | CLDR's group for a unit; the first part of a long unit ID such as `length-meter` | `length`, `speed`, `mass` | "unitType", or "grouping" |
+| Unit quantity | What a unit measures, from its base unit; often narrower than the category | `voltage` and `electric-current`; both are in the `electric` category | "Quantity" |
 
 A pre-built unit can be simple (`meter`) or non-simple (`kilogram`). A composed unit is never
 simple, because CLDR 49 has an entry for every simple unit.
