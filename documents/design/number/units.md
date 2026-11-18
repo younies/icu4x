@@ -56,12 +56,13 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 ## Pre-built Units (example: `meter` and `kilogram`)
 
-### what do we need to format pre-built units
+### What we need to format a pre-built unit
 
-1. data entry from the CLDR data based on:
-    - unit id
-    - locale
-3. applying the prular rule for this data entry (NOTE: the plural rule is applying for all the lengthes `narrow` , `short` and `long`).
+1. The unit's data entry from the CLDR data, found by:
+    - the unit ID,
+    - the locale,
+    - the length (`long`, `short`, or `narrow`).
+2. The locale's plural rules, to pick the pattern for the number from this data entry. Note: the plural rules apply to all the lengths, `narrow`, `short`, and `long`.
 
 
 ### Current Implementaion
