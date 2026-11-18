@@ -214,12 +214,13 @@ For the per-unit data, I propose 3 markers in total, one per width, keyed by uni
 
 #### Current implementation of the measure units (`MeasureUnit`)
 
-Measure units is a struct that actually mapping what is inside a MeasureUnit
+`MeasureUnit` is a struct that holds the parts of a unit:
 
 ```rust
 pub struct MeasureUnit {
-    single_units: Vec<SingleUnit>, // the list of single units
-    constant_denominator: u64,     // 0 when there's no constant
+    id: Option<&'static str>,    // the CLDR ID; only the category constructors set it
+    single_units: SingleUnitVec, // the single units; no allocation for one or two units
+    constant_denominator: u64,   // 0 when there is no constant
 }
 ```
 
@@ -236,6 +237,7 @@ pub struct SingleUnit {
 ```rust
 // Example: "liter-per-100-kilometer"
 MeasureUnit {
+    id: None,
     single_units: [
         SingleUnit { power:  1, si_prefix: { power: 0, base: Decimal }, unit_id: liter }, // liter
         SingleUnit { power: -1, si_prefix: { power: 3, base: Decimal }, unit_id: meter }, // per kilometer
@@ -247,46 +249,51 @@ MeasureUnit {
 **16 hand-written constructors:** 
 Duration 10 · Mass 2 · Volume 2 · Length 1 · Area 1
 
-#### Problems Current implementation of the measure units (`MeasureUnit`)
+#### Problems with the current implementation of the measure units (`MeasureUnit`)
 
-while the `MeasureUnit` struct is very efficient for representing the internal measure unit representaion in a way that we can:
+The `MeasureUnit` struct is very efficient for the internal representation of a measure unit, in a way that we can:
 * convert the unit (extract the units conversion data)
 * know the internal structure like 
     * How many single units
     * Constant and so on
 
-but for a user, who needs just to format a pre-built unit, they need just to have a the unit to format it
+But a user who needs just to format a pre-built unit needs just to have the unit to format it.
 
-For example: `PreBuilt::Meter` or `PreBuiltUnit::KiloGram` ... etc.
+For example: `Length::METER` or `Mass::KILOGRAM`.
 
+##### Proposal for `PrebuiltUnit`
 
-##### Proposal for `Prebuilt MeasureUnit`
+Having a struct called `PrebuiltUnit` that holds the ID of the pre-built unit. The category is a type parameter, and the units are constants on their category:
 
-Having a struct, enum called `PrebuiltUnit` and the id of each enum is the id of the prebuilt unit
+```rust
+pub struct PrebuiltUnit<C: MeasureUnitCategory>(u16, PhantomData<C>); // the unit ID
 
-```rust=
-enum PrebuiltUnit {
-    METER = 0,
-    SQUARE_METER = 1,
-    MILE = 2,
-    KILO_GRAM = 3,
+impl Length {
+    pub const METER: PrebuiltUnit<Length> = PrebuiltUnit(85, PhantomData);
+}
+
+impl Mass {
+    pub const KILOGRAM: PrebuiltUnit<Mass> = PrebuiltUnit(75, PhantomData);
 }
 ```
 
-These prebuilt units can be auto generated, and when the CLDR deprecate one, we keep it and we can give it and give it the number of the deprecated unit
+* The numbers are the unit IDs that the parser table has today.
+* `PhantomData` is there because Rust doesn't allow a type parameter that no field uses.
+* The category in the type is what lets a formatter ship the data of one category only.
+* It is a struct with constants and not an enum, because the units are 238 and grow with each CLDR release. ICU4X's guide (`documents/design/enums_or_ids.md`) asks whether the set is fixed and whether it has 30 or fewer items. Both answers are no here, and that points to an ID.
 
-For example:
+These pre-built units can be auto-generated. When CLDR deprecates a unit, we keep the old name, and the new name gets the number of the deprecated unit.
 
-```rust=
-enum PrebuiltUnit {
-    TONNE = 123, // deprecated
-    METRIC_TONNE = 123 // replacing TONNE
+For example, CLDR deprecated `metric-ton` and replaced it with `tonne`:
+
+```rust
+impl Mass {
+    pub const TONNE: PrebuiltUnit<Mass> = PrebuiltUnit(146, PhantomData);
+
+    #[deprecated(note = "CLDR renamed metric-ton to tonne")]
+    pub const METRIC_TON: PrebuiltUnit<Mass> = Mass::TONNE;
 }
 ```
-
-
-
-
 
 ## Composed Units
 
