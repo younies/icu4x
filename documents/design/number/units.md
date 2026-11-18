@@ -1,3 +1,6 @@
+
+// we need to add style to the page so we can have colors to the section based on the depth, h1 dark black, h2 black, h3 blue, h4 green
+
 # Units in ICU4X: pre-built units, composed units, and their data
 
 | | |
@@ -38,7 +41,46 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 ## Requirements
 
-## Problem
+1. We need to support and format 
+    - pre-built units
+    - composed units (using `per-unit` data entry)
+    - mixed units
+    - locale aware units conversion
+
+2. we need to support all the options needed for EcmaScript for each formatting are
+    - Length
+        - long, short or narrow
+        - NOTE: each category 
+    - rounding
+    - ...etc.
+
+## Pre-built Units (example: `meter` and `kilogram`)
+
+### what do we need to format pre-built units
+
+1. data entry from the CLDR data based on:
+    - unit id
+    - locale
+3. applying the prular rule for this data entry (NOTE: the plural rule is applying for all the lengthes `narrow` , `short` and `long`).
+
+
+### Current Implementaion
+
+To be filled.
+
+#### Current Implementation for API (categorized units)
+to be filled
+
+#### Current Implemetattion for the MeasurementUnits
+to be filled
+
+#### Current impoementaiont for the Units Data
+
+to be filled
+
+
+
+### propoal for the pre-built units
 
 ## Proposal
 
