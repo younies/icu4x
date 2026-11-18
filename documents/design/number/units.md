@@ -18,9 +18,9 @@
 | Simple unit | One unit without a prefix or a power | `pound`, `gram`; not `kilogram` | "Simple unit" |
 | Non-simple unit | A unit with a prefix or a power, or made of several units | `kilogram`, `square-meter`, `mile-per-hour` | "Complex unit", or "compound unit" |
 | Unit category | CLDR's group for a unit; the first part of a long unit ID such as `length-meter` | `length`, `speed`, `mass` | "unitType", or "grouping" |
-| Unit quantity | What a unit measures, from its base unit; often narrower than the category | `voltage` and `electric-current`; both are in the `electric` category | "Quantity" |
+| Unit quantity | What a unit measures, from its base unit; often narrower than the category, and **not all the units has quantities** | `voltage` and `electric-current`; both are in the `electric` category | "Quantity" |
 
-A pre-built unit can be simple (`meter`) or non-simple (`kilogram`). A composed unit is never
+A pre-built unit can be simple (`meter`) or non-simple (`kilogram`). A composed unit is never [this is not true I think?]
 simple, because CLDR 49 has an entry for every simple unit.
 
 UTS #35 names unit identifiers by their structure
@@ -73,50 +73,238 @@ The units code is in `icu_experimental`. It formats pre-built units in only five
 
 #### Current implementation of the API (categorized units)
 
-- The formatter is `CategorizedFormatter<C>`, where `C` is a category type such as `Length`. The category in the type decides which data the code refers to.
-- It has three constructors: `try_new_core`, `try_new_extended`, and `try_new_outlier`. Each takes the preferences (the locale and the numbering system), a unit of that category, and the options.
-- The only option is the width: long, short (the default), or narrow.
-- The formatter keeps the unit's patterns, a decimal formatter, and the plural rules. `format_fixed_decimal` picks the pattern with the plural rules and puts the formatted number in it.
-- Each constructor looks in more data than the one before it: `try_new_core` looks for the unit in the `Core` data, `try_new_extended` in `Core` and `Extended`, and `try_new_outlier` in `Core`, `Extended`, and `Outlier`.
+##### 📌 Core Architecture
+
+*   **Definition:** `CategorizedFormatter<C>` formats units for a specific category `C` (like `Length`, `speed`), which determines the underlying data used.
+*   **Settings:**
+    *   **Inputs:** Takes preferences (locale + numbering system), a unit, and options.
+    *   **Options:** Only configures width—`short` (default), `long`, or `narrow`.
+
+##### 🔍 Constructor Lookup Hierarchy
+
+Each of the three constructors searches cumulative tiers of data to find the unit:
+
+| Constructor | Data Searched (Falls back in order) |
+| :--- | :--- |
+| **`try_new_core`** | `Core` |
+| **`try_new_extended`** | `Core` ➡️ `Extended` |
+| **`try_new_outlier`** | `Core` ➡️ `Extended` ➡️ `Outlier` |
+
+###### 💻 Code Example
 
 ```rust
 let formatter = CategorizedFormatter::<Area>::try_new_core(
-    locale!("en-US").into(),
+    locale!("de-DE").into(),
     Area::square_meter(),
     UnitsFormatterOptions::default(),
 )?;
+
 let value = Decimal::from_str("1000")?;
-formatter.format_fixed_decimal(&value); // "1,000 m²"
+
+// Formats the value using "de-DE" rules
+// Expected Output: "1.000 m²" (German uses "." as a thousands separator)
+formatter.format_fixed_decimal(&value); 
 ```
 
-##### Problems with the current API
+#### Problems with the current API
 
-1. The categories are written by hand: the five category types and their 16 units.
+##### 1. The categories are written by hand
 
-##### Solution
+* The categories are written by hand: the five category types and their 16 units.
 
-1. We need a generator that generates the categories. The generator must also keep track of the category names, because CLDR can change or rename a category.
+##### 1. Solution
 
-#### Current implementation of the measure units (`MeasureUnit`)
+1. We need a code generator that generates the categories. 
+    * The generator must also keep track of the category names, because CLDR can change or rename a category.
+    * In the MeasureUnit section, we need to handle also generating the 
 
-- A `MeasureUnit` is a list of single units and a constant for the denominator, such as the `100` in `liter-per-100-kilometer`.
-- A single unit is a power, a prefix (SI or binary), and a unit ID. The unit ID is a `u16` from a table that is written by hand in the parser (`measure/parser/ids.rs`). The table has 157 units.
-- `MeasureUnit::try_from_str` parses any identifier, such as `meter-per-second`, and needs no data. But a parsed unit has no CLDR ID, which the formatter needs to find the unit's patterns, so it can't be formatted.
-- The formatter takes a `CategorizedMeasureUnit<C>`, which only comes from a constructor on the category type, such as `Length::meter()`. There are 16 constructors, written by hand: 10 for duration, 2 for mass, 2 for volume, 1 for length, and 1 for area.
-- Each constructor reads its unit ID from baked data, so it needs the `compiled_data` feature.
+##### 2. Naming 
+* Do we recommend the current name `CategorizedFormatter`?
+
+##### 2. Solution
+* we can name it 
+    * `MeasureFormatter`
+    * `UnitFormatter`
+    * `PreBuiltUnitFormatter`
+    * ... etc.
+
+
+##### 3. Length does not has it own formatter
+
+right now, width (like `long`, `short` and `narrow`) is passing by options, and it is better to split the data based on the width
+
+##### 3. Solution
+
+Therefore, I propose to have a formatter based on the width
+* `CategorizedFormatterLong`
+* `CategorizedFormatterShort`
+* `CategorizedFormatterNarrow`
+
+
+
 
 #### Current implementation of the units data
 
-- **Names.** There are 15 markers, three for each of the five categories: `Core`, `Extended`, and `Outlier`, as in `UnitsNamesLengthCoreV1`.
-- **Which marker.** It depends on the locale's region. A unit is `Core` if CLDR's unit preferences use it in that region, `Extended` if they use it only in other regions, and `Outlier` if they don't use it.
-- **Key.** A unit's entry is found by the locale and a key made of the width and the CLDR unit ID, such as `short-meter`. The entry is the unit's patterns, one for each plural form.
-- **Unit IDs.** `UnitsIdV1` holds the unit ID of each unit in the parser table. The constructors read it.
-- **Composition patterns.** `UnitsEssentialsV1` holds the patterns for prefixes, powers, `per`, and `times`. Nothing reads it yet.
-- **Conversion.** `UnitsInfoV1` holds the conversion data. Formatting doesn't use it.
+There are **15 total markers** (3 markers for each of the 5 categories). These categories classify how units are distributed across different regions:
+
+| Category | Description | Example Marker |
+| :--- | :--- | :--- |
+| **`Core`** | Units actively used in the locale's region according to CLDR unit preferences. | `UnitsNamesLengthCoreV1` |
+| **`Extended`** | Units not used in the local region, but used in other regions. | *N/A* |
+| **`Outlier`** | Units not used in any region's standard preferences. | *N/A* |
 
 
 
-### propoal for the pre-built units
+*   **Lookup Key:** A unit's entry is retrieved using the **locale** and a composite key made of
+    1. The **width** 
+    2. The **CLDR unit ID**
+    3. E.g., `short-meter`.
+*   **Plural Forms:** The retrieved entry contains the formatting patterns, with one pattern mapped for each plural form.
+
+#### Problems with the Current implementation of the units data
+
+##### 1. Manual creation for each category
+
+* Each category data marker is written manually
+
+##### 1. solution
+
+* We need a code generator to generate all the markers
+    * NOTE: in case CLDR changed one of the categories name, the marker name will be changed, the marker name should be change.
+        * This means that we need to reserve the old markers name and make them include the same data of the new category name, for example, `LengthV1` if renamded to `TallV1`, `LengthV1` and `TallV1` shall have the same data, so we keep the data markers exist and the data will be dedublicated.
+
+
+##### 2. Data Representaion
+
+1. The data is combining all the widthes together in the same marker and splitting the data will help in having a spilitted API based on the length
+
+
+
+##### 2. Solution
+
+* I propose to have a marker for each category based on the width,
+    * `UnitsNamesLengthLongCoreV1`
+    * `UnitsNamesLengthShortCoreV1`
+
+
+##### 3. Data Split , core, extended and outlier
+
+* Distinguish between Core and Extended causing some issues
+    * There will be different data in `Core` based on the locale, which will not help in deduplication, especially in short and narrow data.
+    * when the locale fallback, it will reach always default `001` , which in some locales , like en-US, and `meter` , core will return the  `001` fallback instead failing to make the user to use `Extended`
+
+
+##### 3. Solution
+
+* I propose to combine both the Core and Extended to be just `Core`, this will result to have only `Core` for all the units in unit prefernces and `Outliers` for the other units.
+
+##### 4. There is no split based on simple or non-simple unit
+
+This will come later, but we can discuss it here, as in the composed units formatting, we will need to have 
+
+1. composition rules
+2. simple units
+3. per-unit data
+
+##### 4. Solution
+
+I propose to have a split to the units based on simplicity, for example: `UnitsNamesLengthLongCoreSimpleV1` and `UnitsNamesLengthLongCoreV1` for non simple units
+
+Also, having the pre-unit data already in a marker, `UnitsPerunitLengthLongCoreSimpleV1` and `UnitsPerunitLengthLongCoreV1`
+
+
+
+
+
+
+#### Current implementation of the measure units (`MeasureUnit`)
+
+Measure units is a struct that actually mapping what is inside a MeasureUnit
+
+```rust
+pub struct MeasureUnit {
+    single_units: Vec<SingleUnit>, // the list of single units
+    constant_denominator: u64,     // 0 when there's no constant
+}
+```
+
+```rust
+// icu::experimental::measure::provider::single_unit
+pub struct SingleUnit {
+    pub power: i8,           // e.g. 2 for square-, -1 when after "per"
+    pub si_prefix: SiPrefix, // SI or binary prefix
+    pub unit_id: u16,        // index into hand-written table (157 units, measure/parser/ids.rs)
+}
+```
+
+
+```rust
+// Example: "liter-per-100-kilometer"
+MeasureUnit {
+    single_units: [
+        SingleUnit { power:  1, si_prefix: { power: 0, base: Decimal }, unit_id: liter }, // liter
+        SingleUnit { power: -1, si_prefix: { power: 3, base: Decimal }, unit_id: meter }, // per kilometer
+    ],
+    constant_denominator: 100,
+}
+```
+
+**16 hand-written constructors:** 
+Duration 10 · Mass 2 · Volume 2 · Length 1 · Area 1
+
+#### Problems Current implementation of the measure units (`MeasureUnit`)
+
+while the `MeasureUnit` struct is very efficient for representing the internal measure unit representaion in a way that we can:
+* convert the unit (extract the units conversion data)
+* know the internal structure like 
+    * How many single units
+    * Constant and so on
+
+but for a user, who needs just to format a pre-built unit, they need just to have a the unit to format it
+
+For example: `PreBuilt::Meter` or `PreBuiltUnit::KiloGram` ... etc.
+
+
+##### Proposal for `Prebuilt MeasureUnit`
+
+Having a struct, enum called `PrebuiltUnit` and the id of each enum is the id of the prebuilt unit
+
+```rust=
+enum PrebuiltUnit {
+    METER = 0,
+    SQUARE_METER = 1,
+    MILE = 2,
+    KILO_GRAM = 3,
+}
+```
+
+These prebuilt units can be auto generated, and when the CLDR deprecate one, we keep it and we can give it and give it the number of the deprecated unit
+
+For example:
+
+```rust=
+enum PrebuiltUnit {
+    TONNE = 123, // deprecated
+    METRIC_TONNE = 123 // replacing TONNE
+}
+```
+
+
+
+
+
+## Composed Units
+
+TBD
+
+## Mixed Units
+TBD
+
+
+## Smart Units
+
+TBD
+
 
 ## Proposal
 
@@ -137,8 +325,6 @@ formatter.format_fixed_decimal(&value); // "1,000 m²"
 ## Design questions
 
 ## Questions for the committee
-
-## Appendix A: How many users need composed units
 
 ## Appendix B: Data needed by each category in option 2
 
