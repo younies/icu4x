@@ -74,7 +74,7 @@ The units code is in `icu_experimental`. It formats pre-built units in only five
 - It has three constructors: `try_new_core`, `try_new_extended`, and `try_new_outlier`. Each takes the preferences (the locale and the numbering system), a unit of that category, and the options.
 - The only option is the width: long, short (the default), or narrow.
 - The formatter keeps the unit's patterns, a decimal formatter, and the plural rules. `format_fixed_decimal` picks the pattern with the plural rules and puts the formatted number in it.
-- `try_new_outlier` looks for the unit in `Core`, then in `Extended`, then in `Outlier`.
+- Each constructor looks in more data than the one before it: `try_new_core` looks for the unit in the `Core` data, `try_new_extended` in `Core` and `Extended`, and `try_new_outlier` in `Core`, `Extended`, and `Outlier`.
 
 ```rust
 let formatter = CategorizedFormatter::<Area>::try_new_core(
