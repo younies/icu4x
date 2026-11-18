@@ -70,7 +70,7 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 The units code is in `icu_experimental`. It formats pre-built units in only five categories, which are written by hand: area, duration, length, mass, and volume.
 
-#### Current implementation of the API (categorized units)
+#### The API (categorized units)
 
 ##### Core architecture
 
@@ -105,42 +105,7 @@ let value = Decimal::from_str("1000")?;
 formatter.format_fixed_decimal(&value); 
 ```
 
-#### Problems with the current API
-
-##### Problem 1: The categories are written by hand
-
-The five category types and their 16 units are written by hand.
-
-**Solution.** We need a code generator that generates the categories.
-
-* The generator must also keep track of the category names, because CLDR can change or rename a category.
-* The `MeasureUnit` section below covers generating the units of each category.
-
-##### Problem 2: The name of the formatter
-
-Do we recommend the current name `CategorizedFormatter`?
-
-**Solution.** We can name it:
-
-* `MeasureFormatter`
-* `UnitFormatter`
-* `PrebuiltUnitFormatter`
-* ... etc.
-
-##### Problem 3: The width is an option, not part of the formatter
-
-Today the width (`long`, `short`, or `narrow`) is passed in the options. So every formatter ships the data of all three widths.
-
-**Solution.** Split the formatter by width. There are two ways to do it, and both let an app ship one width:
-
-| Choice | Example | Cost |
-| :--- | :--- | :--- |
-| Three formatter types | `CategorizedFormatterLong`, `CategorizedFormatterShort`, `CategorizedFormatterNarrow` | Three types to name, document, and keep the same |
-| Constructors per width on one type | `CategorizedFormatter::try_new_long_core` | More constructors on one type |
-
-The currency formatter already uses the second shape (`try_new_symbol`, `try_new_name`, `try_new_code`), so I propose that one.
-
-#### Current implementation of the units data
+#### The units data
 
 There are **15 markers**: 3 for each of the 5 categories. The three tiers say where CLDR's unit preferences use a unit:
 
@@ -156,21 +121,30 @@ There are **15 markers**: 3 for each of the 5 categories. The three tiers say wh
     3. E.g., `short-meter`.
 *   **Plural Forms:** The retrieved entry contains the formatting patterns, with one pattern mapped for each plural form.
 
-#### Problems with the current implementation of the units data
+#### Problems with the current implementation
 
-##### Problem 1: Each category's markers are written by hand
+Each problem below covers both the API and the data, where they are affected.
 
-Each category data marker is written manually.
+##### Problem 1: Categories and their markers are written by hand
 
-**Solution.** We need a code generator to generate all the markers.
+The five category types, their 16 units, and the 15 data markers are all written by hand.
 
-If CLDR renames a category, the marker names stay. The generator keeps a table from the CLDR category name to the Rust name. If we want the new name too, it is a type alias of the old marker, so there is one copy of the data. For example, if CLDR renamed `length` to `tall`:
+**Solution.** One code generator writes all three from CLDR:
+
+* the category types, such as `Length` and `Mass`,
+* the unit constants of each category (see `PrebuiltUnit` below),
+* the data markers of each category, such as `UnitsNamesLengthCoreV1`.
+
+The generator keeps a table from each CLDR category name to its Rust name, so a CLDR rename
+doesn't rename anything in Rust. If we want the new name too, it is a type alias of the old one,
+so the data is stored once. For example, if CLDR renamed `length` to `tall`:
 
 ```rust
 pub type UnitsNamesTallCoreV1 = UnitsNamesLengthCoreV1;
 ```
 
-Two markers with the same data would not work here: the baked data removes duplicates inside one marker, not across two markers, so the data would be stored twice.
+Two separate markers with the same data would store it twice: baked data removes duplicates
+inside one marker, not across markers.
 
 ICU4X already keeps the old name of a renamed type as an alias. For example, in `components/calendar/src/cal/mod.rs`:
 
@@ -179,19 +153,40 @@ ICU4X already keeps the old name of a renamed type as an alias. For example, in 
 pub type Dangi = KoreanTraditional;
 ```
 
-*Note: the type alias is a suggestion from an AI assistant, and it needs a review. ICU4X uses aliases for renamed types, but we found no renamed data marker that is kept this way.*
+##### Problem 2: The width is an option, and all widths share one marker
 
-##### Problem 2: Data representation
+Today the width (`long`, `short`, or `narrow`) is passed in the options, and one marker holds
+the data of all three widths. So every formatter ships all three widths.
 
-One marker holds all the widths together. Splitting the data by width will help in having an API that is split based on the width.
+**Solution.** Split both the data and the API by width, so an app ships only the width it uses.
 
-**Solution.** I propose to have a marker for each category based on the width:
+*Data:* one marker per category and width:
 
 * `UnitsNamesLengthLongCoreV1`
 * `UnitsNamesLengthShortCoreV1`
 * `UnitsNamesLengthNarrowCoreV1`
 
-##### Problem 3: The split into `Core`, `Extended`, and `Outlier`
+*API:* there are two ways to choose the width:
+
+| Choice | Example | Cost |
+| :--- | :--- | :--- |
+| Three formatter types | `CategorizedFormatterLong`, `CategorizedFormatterShort`, `CategorizedFormatterNarrow` | Three types to name, document, and keep the same |
+| Constructors per width on one type | `CategorizedFormatter::try_new_long_core` | More constructors on one type |
+
+The currency formatter already uses the second shape (`try_new_symbol`, `try_new_name`, `try_new_code`), so I propose that one.
+
+##### Problem 3: The name of the formatter
+
+Do we recommend the current name `CategorizedFormatter`?
+
+**Solution.** We can name it:
+
+* `MeasureFormatter`
+* `UnitFormatter`
+* `PrebuiltUnitFormatter`
+* ... etc.
+
+##### Problem 4: The split into `Core`, `Extended`, and `Outlier`
 
 Distinguishing between `Core` and `Extended` causes some issues:
 
@@ -200,7 +195,7 @@ Distinguishing between `Core` and `Extended` causes some issues:
 
 **Solution.** I propose to combine `Core` and `Extended` into just `Core`. Then there is only `Core` for all the units in the unit preferences, and `Outlier` for the other units.
 
-##### Problem 4: There is no split based on simple or non-simple units
+##### Problem 5: There is no split based on simple or non-simple units
 
 This will come later, but we can discuss it here. To format composed units, we will need:
 
@@ -212,7 +207,7 @@ This will come later, but we can discuss it here. To format composed units, we w
 
 For the per-unit data, I propose 3 markers in total, one per width, keyed by unit ID: `UnitsPerUnitLongV1`, `UnitsPerUnitShortV1`, and `UnitsPerUnitNarrowV1`. The same split as the names (22 categories, 3 widths, 2 tiers, and simple or non-simple) would give 264 per-unit markers, but in CLDR 49 only 28 units in 5 categories have a per-unit pattern.
 
-##### Problem 5: The representation of the pre-built unit IDs
+##### Problem 6: The representation of the pre-built unit IDs
 
 Today the key of a unit's data entry contains the full CLDR ID of the pre-built unit, for example `kilogram`, `kilometer-per-hour`, or `mile-per-hour`.
 These long strings make the data marker keys bigger.
