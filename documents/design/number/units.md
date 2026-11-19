@@ -129,9 +129,9 @@ There are **15 markers**: 3 for each of the 5 categories. The three tiers say wh
 
 | Tier | Which units | Example marker |
 | :--- | :--- | :--- |
-| **`Core`** | Units that the preferences use in the locale's region | `UnitsNamesLengthCoreV1` |
-| **`Extended`** | Units that the preferences use only in other regions | `UnitsNamesLengthExtendedV1` |
-| **`Outlier`** | Units that the preferences don't use | `UnitsNamesLengthOutlierV1` |
+| **`Core`** | Units that the preferences use in the locale's region | [`UnitsNamesLengthCoreV1`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/provider/units/categorized_display_names.rs#L39) |
+| **`Extended`** | Units that the preferences use only in other regions | [`UnitsNamesLengthExtendedV1`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/provider/units/categorized_display_names.rs#L41) |
+| **`Outlier`** | Units that the preferences don't use | [`UnitsNamesLengthOutlierV1`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/provider/units/categorized_display_names.rs#L43) |
 
 -   **Lookup Key:** A unit's entry is retrieved using the **locale** and a composite key made of
     1. The **width** 
