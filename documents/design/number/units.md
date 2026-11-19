@@ -173,6 +173,10 @@ ICU4X already keeps the old name of a renamed type as an alias. For example, in 
 pub type Dangi = KoreanTraditional;
 ```
 
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
+
 ##### Problem 2: The width is an option, and all widths share one marker
 
 Today the width (`long`, `short`, or `narrow`) is passed in the options, and one marker holds
@@ -195,6 +199,10 @@ the data of all three widths. So every formatter ships all three widths.
 
 The currency formatter already uses the second shape (`try_new_symbol`, `try_new_name`, `try_new_code`), so I propose that one.
 
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
+
 ##### Problem 3: The name of the formatter
 
 Do we recommend the current name `CategorizedFormatter`?
@@ -206,6 +214,10 @@ Do we recommend the current name `CategorizedFormatter`?
 - `PrebuiltUnitFormatter`
 - ... etc.
 
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
+
 ##### Problem 4: The split into `Core`, `Extended`, and `Outlier`
 
 Distinguishing between `Core` and `Extended` causes some issues:
@@ -214,6 +226,10 @@ Distinguishing between `Core` and `Extended` causes some issues:
 - With locale fallback, a request for `meter` in `Core` for `en-US` goes from `en-US` to `en` to `und`. `und` has a `Core` entry for `meter`, so the user gets the root name, and not an error that tells them to use `Extended`.
 
 **Solution.** I propose to combine `Core` and `Extended` into just `Core`. Then there is only `Core` for all the units in the unit preferences, and `Outlier` for the other units.
+
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
 
 ##### Problem 5: There is no split based on simple or non-simple units
 
@@ -226,6 +242,10 @@ This will come later, but we can discuss it here. To format composed units, we w
 **Solution.** I propose to split the units based on simplicity, for example `UnitsNamesLengthLongCoreSimpleV1` for simple units and `UnitsNamesLengthLongCoreNonSimpleV1` for non-simple units.
 
 For the per-unit data, I propose 3 markers in total, one per width, keyed by unit ID: `UnitsPerUnitLongV1`, `UnitsPerUnitShortV1`, and `UnitsPerUnitNarrowV1`. The same split as the names (22 categories, 3 widths, 2 tiers, and simple or non-simple) would give 264 per-unit markers, but in CLDR 49 only 28 units in 5 categories have a per-unit pattern.
+
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
 
 ##### Problem 6: The representation of the pre-built unit IDs
 
@@ -254,6 +274,10 @@ Notes:
 - The formatter takes the ID from the constant, so it doesn't need the name table at run time.
 
 > **_NOTE:_** "How to do it in ICU4X" is a suggestion from an AI assistant, and it needs a review.
+
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
 
 #### Current implementation of the measure units (`MeasureUnit`)
 
@@ -337,6 +361,10 @@ impl Mass {
     pub const METRIC_TON: PrebuiltUnit<Mass> = Mass::TONNE;
 }
 ```
+
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
 
 ## Composed Units
 
