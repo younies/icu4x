@@ -136,9 +136,8 @@ The five category types, their 16 units, and the 15 data markers are all written
 * the data markers of each category, such as `UnitsNamesLengthCoreV1`.
 
 >NOTE
-> The generator must keep track of  each CLDR category in ICU4X, so a CLDR rename doesn't rename anything in ICU4X.
->If we want the new name too, it is a type alias of the old one,
-so the data is stored once. For example, if CLDR renamed `length` to `tall`:
+> The generator must keep track of  each CLDR categories & the pre-built units in ICU4X, so a CLDR rename doesn't rename anything in ICU4X.
+>If CLDR introduced a new category name, we can use type alias, so the data is stored once. For example, if CLDR renamed `length` to `tall`:
 
 ```rust
 pub type UnitsNamesTallCoreV1 = UnitsNamesLengthCoreV1;
