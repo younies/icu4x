@@ -139,6 +139,8 @@ There are **15 markers**: 3 for each of the 5 categories. The three tiers say wh
     3. E.g., `short-meter`.
 -   **Plural Forms:** The retrieved entry contains the formatting patterns, with one pattern mapped for each plural form.
 
+    > **_NOTE:_** Every width (`long`, `short`, and `narrow`) has plural forms. For example, in English the `short` patterns of `day` are `{0} day` and `{0} days`.
+
 #### Problems with the current implementation
 
 Each problem below covers both the API and the data, where they are affected.
