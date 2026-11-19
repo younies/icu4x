@@ -92,10 +92,10 @@ The units code is in [`icu_experimental`](https://github.com/unicode-org/icu4x/t
 
 ##### Core architecture
 
-*   **Definition:** [`CategorizedFormatter<C>`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/units/categorized_formatter.rs#L58) formats units for a specific category `C` (like [`Length`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/measure/category/mod.rs#L68) or [`Mass`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/measure/category/mod.rs#L73)), which determines the underlying data used.
-*   **Settings:**
-    *   **Inputs:** Takes preferences (locale + numbering system), a unit, and options.
-    *   **Options:** only the width: `short` (the default), `long`, or `narrow`.
+-   **Definition:** [`CategorizedFormatter<C>`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/units/categorized_formatter.rs#L58) formats units for a specific category `C` (like [`Length`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/measure/category/mod.rs#L68) or [`Mass`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/measure/category/mod.rs#L73)), which determines the underlying data used.
+-   **Settings:**
+    -   **Inputs:** Takes preferences (locale + numbering system), a unit, and options.
+    -   **Options:** only the width: `short` (the default), `long`, or `narrow`.
 
 ##### Constructor lookup order
 
@@ -133,11 +133,11 @@ There are **15 markers**: 3 for each of the 5 categories. The three tiers say wh
 | **`Extended`** | Units that the preferences use only in other regions | `UnitsNamesLengthExtendedV1` |
 | **`Outlier`** | Units that the preferences don't use | `UnitsNamesLengthOutlierV1` |
 
-*   **Lookup Key:** A unit's entry is retrieved using the **locale** and a composite key made of
+-   **Lookup Key:** A unit's entry is retrieved using the **locale** and a composite key made of
     1. The **width** 
     2. The **CLDR unit ID**
     3. E.g., `short-meter`.
-*   **Plural Forms:** The retrieved entry contains the formatting patterns, with one pattern mapped for each plural form.
+-   **Plural Forms:** The retrieved entry contains the formatting patterns, with one pattern mapped for each plural form.
 
 #### Problems with the current implementation
 
@@ -149,9 +149,9 @@ The five category types, their 16 units, and the 15 data markers are all written
 
 **Solution.** One code generator writes all three from CLDR:
 
-* the category types, such as `Length` and `Mass`,
-* the unit constants of each category (see `PrebuiltUnit` below),
-* the data markers of each category, such as `UnitsNamesLengthCoreV1`.
+- the category types, such as `Length` and `Mass`,
+- the unit constants of each category (see `PrebuiltUnit` below),
+- the data markers of each category, such as `UnitsNamesLengthCoreV1`.
 
 >NOTE
 > The generator must keep track of  each CLDR categories & the pre-built units in ICU4X, so a CLDR rename doesn't rename anything in ICU4X.
@@ -180,9 +180,9 @@ the data of all three widths. So every formatter ships all three widths.
 
 *Data:* one marker per category and width:
 
-* `UnitsNamesLengthLongCoreV1`
-* `UnitsNamesLengthShortCoreV1`
-* `UnitsNamesLengthNarrowCoreV1`
+- `UnitsNamesLengthLongCoreV1`
+- `UnitsNamesLengthShortCoreV1`
+- `UnitsNamesLengthNarrowCoreV1`
 
 *API:* there are two ways to choose the width:
 
@@ -199,17 +199,17 @@ Do we recommend the current name `CategorizedFormatter`?
 
 **Solution.** We can name it:
 
-* `MeasureFormatter`
-* `UnitFormatter`
-* `PrebuiltUnitFormatter`
-* ... etc.
+- `MeasureFormatter`
+- `UnitFormatter`
+- `PrebuiltUnitFormatter`
+- ... etc.
 
 ##### Problem 4: The split into `Core`, `Extended`, and `Outlier`
 
 Distinguishing between `Core` and `Extended` causes some issues:
 
-* There will be different data in `Core` based on the locale, which will not help in deduplication, especially in the short and narrow data.
-* With locale fallback, a request for `meter` in `Core` for `en-US` goes from `en-US` to `en` to `und`. `und` has a `Core` entry for `meter`, so the user gets the root name, and not an error that tells them to use `Extended`.
+- There will be different data in `Core` based on the locale, which will not help in deduplication, especially in the short and narrow data.
+- With locale fallback, a request for `meter` in `Core` for `en-US` goes from `en-US` to `en` to `und`. `und` has a `Core` entry for `meter`, so the user gets the root name, and not an error that tells them to use `Extended`.
 
 **Solution.** I propose to combine `Core` and `Extended` into just `Core`. Then there is only `Core` for all the units in the unit preferences, and `Outlier` for the other units.
 
@@ -231,25 +231,25 @@ Today the key of a unit's data entry contains the full CLDR ID of the pre-built 
 These long strings make the data marker keys bigger.
 
 **Solution.** I propose a fixed numeric ID for every pre-built unit, especially the simple ones. The IDs are auto-generated and never change:
-* A new unit gets a new ID.
-* A removed unit keeps its ID, and no other unit reuses it.
+- A new unit gets a new ID.
+- A removed unit keeps its ID, and no other unit reuses it.
 
 
 The IDs need to be stored in one place, in a data marker or in generated code. Each time the generator runs, it reads the old IDs first, and then gives new IDs only to the new units.
 
 
 **How to do it in ICU4X.** ICU4X already has the two pieces:
-* `components/experimental/src/measure/parser/ids.rs` is a table from the name of a simple unit to its ID. It has 158 names, it is edited by hand, and its rule is "Identifiers are immutable".
-* `cargo make codegen` writes Rust files from text files that are checked in. For example, it writes `components/properties/src/enum_values.rs` from the files in `components/properties/data/`. `cargo make codegen-check` fails when the two are out of sync.
+- `components/experimental/src/measure/parser/ids.rs` is a table from the name of a simple unit to its ID. It has 158 names, it is edited by hand, and its rule is "Identifiers are immutable".
+- `cargo make codegen` writes Rust files from text files that are checked in. For example, it writes `components/properties/src/enum_values.rs` from the files in `components/properties/data/`. `cargo make codegen-check` fails when the two are out of sync.
 Suggested steps:
 1. Add a checked-in text file with one line per unit: the ID, the CLDR name, and a flag for a removed unit. Its first version comes from today's `ids.rs`, so no existing ID changes.
 2. Add a step to `cargo make codegen` that reads this file and the CLDR unit list. It appends each new unit with the next free ID, flags a unit that CLDR removed, and never changes or deletes a line.
 3. The same step writes the Rust code from the file: the parser table for the simple units, and the `PrebuiltUnit` constants. A removed unit becomes a `#[deprecated]` constant.
 4. Datagen puts the ID in the key in place of the name: `short-85` where it is `short-meter` today, or just `85` with a marker per width.
 Notes:
-* The non-simple pre-built units, such as `kilometer-per-hour`, aren't in `ids.rs` today. They get new IDs after the existing ones.
-* The IDs go in generated code and not in a data marker, because the `PrebuiltUnit` constants need them at compile time. The `UnitsIdV1` marker is already filled from `ids.rs`.
-* The formatter takes the ID from the constant, so it doesn't need the name table at run time.
+- The non-simple pre-built units, such as `kilometer-per-hour`, aren't in `ids.rs` today. They get new IDs after the existing ones.
+- The IDs go in generated code and not in a data marker, because the `PrebuiltUnit` constants need them at compile time. The `UnitsIdV1` marker is already filled from `ids.rs`.
+- The formatter takes the ID from the constant, so it doesn't need the name table at run time.
 
 > **_NOTE:_** "How to do it in ICU4X" is a suggestion from an AI assistant, and it needs a review.
 
@@ -293,10 +293,10 @@ Duration 10 · Mass 2 · Volume 2 · Length 1 · Area 1
 #### Problems with the current implementation of the measure units (`MeasureUnit`)
 
 The `MeasureUnit` struct is very efficient for the internal representation of a measure unit, in a way that we can:
-* convert the unit (extract the units conversion data)
-* know the internal structure like 
-    * How many single units
-    * Constant and so on
+- convert the unit (extract the units conversion data)
+- know the internal structure like
+    - How many single units
+    - Constant and so on
 
 But a user who needs just to format a pre-built unit needs just to have the unit to format it.
 
@@ -318,10 +318,10 @@ impl Mass {
 }
 ```
 
-* The numbers are the unit IDs that the parser table has today.
-* `PhantomData` is there because Rust doesn't allow a type parameter that no field uses.
-* The category in the type is what lets a formatter ship the data of one category only.
-* It is a struct with constants and not an enum, because the units are 238 and grow with each CLDR release. ICU4X's guide (`documents/design/enums_or_ids.md`) asks whether the set is fixed and whether it has 30 or fewer items. Both answers are no here, and that points to an ID.
+- The numbers are the unit IDs that the parser table has today.
+- `PhantomData` is there because Rust doesn't allow a type parameter that no field uses.
+- The category in the type is what lets a formatter ship the data of one category only.
+- It is a struct with constants and not an enum, because the units are 238 and grow with each CLDR release. ICU4X's guide (`documents/design/enums_or_ids.md`) asks whether the set is fixed and whether it has 30 or fewer items. Both answers are no here, and that points to an ID.
 
 These pre-built units can be auto-generated. When CLDR deprecates a unit, we keep the old name, and the new name gets the number of the deprecated unit.
 
