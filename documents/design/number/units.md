@@ -133,7 +133,7 @@ There are **15 markers**: 3 for each of the 5 categories. The three tiers say wh
 | **`Extended`** | Units that the preferences use only in other regions | `UnitsNamesLengthExtendedV1` |
 | **`Outlier`** | Units that the preferences don't use | `UnitsNamesLengthOutlierV1` |
 
--   **Lookup Key:** A unit's entry is retrieved using the **locale** and a composite key made of
+-   **[Lookup Key](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/units/categorized_formatter.rs#L68-L78):** A unit's entry is retrieved using the **locale** and a composite key made of
     1. The **width** 
     2. The **CLDR unit ID**
     3. E.g., `short-meter`.
