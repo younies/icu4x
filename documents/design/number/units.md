@@ -20,8 +20,24 @@
 | Unit category | CLDR's group for a unit; the first part of a long unit ID such as `length-meter` | `length`, `speed`, `mass` | "unitType", or "grouping" |
 | Unit quantity | What a unit measures, from its base unit; often narrower than the category, and not every unit has one: `generic` and some composed units don't | `voltage` and `electric-current`; both are in the `electric` category | "Quantity" |
 
-A pre-built unit can be simple (`meter`) or non-simple (`kilogram`). A composed unit is never [this is not true I think?]
-simple, because CLDR 49 has an entry for every simple unit.
+>**NOTE:** 
+>A pre-built unit can be simple or non-simple. A composed unit could not be simple: CLDR 49 has an entry for every simple unit, so a simple unit is always pre-built.
+
+<details>
+<summary>Examples of pre-built and composed units</summary>
+
+| Unit | Pre-built or composed | Simple or non-simple | Why |
+| :--- | :--- | :--- | :--- |
+| `meter` | Pre-built | Simple | One unit, no prefix, no power. |
+| `pound` | Pre-built | Simple | One unit, no prefix, no power. |
+| `kilogram` | Pre-built | Non-simple | The prefix `kilo-` on `gram`. |
+| `square-meter` | Pre-built | Non-simple | A power. |
+| `mile-per-hour` | Pre-built | Non-simple | A product with `-per-`. |
+| `square-foot-per-hour` | Composed | Non-simple | No CLDR entry; formatted from `square-foot`, `hour`, and the per-unit rule. |
+</details>
+
+<details>
+<summary>UTS #35 unit identifiers</summary>
 
 UTS #35 names unit identifiers by their structure
 ([Unit Identifiers](https://www.unicode.org/reports/tr35/tr35-general.html#Unit_Identifiers)). Each
@@ -35,6 +51,8 @@ level includes the levels above it. The tracker's `complexity` field uses the fi
 | Core unit ID | Products and `-per-` | `kilometer-per-hour`, `kilogram-meter` |
 | Mixed unit ID | `-and-` between units of one kind | `foot-and-inch` |
 | Long unit ID | The category in front; to be deprecated | `length-meter` |
+
+</details>
 
 ICU calls a pre-built unit a built-in unit, and has three levels: single, compound, and mixed.
 
@@ -68,13 +86,13 @@ ICU calls a pre-built unit a built-in unit, and has three levels: single, compou
 
 ### Current implementation
 
-The units code is in `icu_experimental`. It formats pre-built units in only five categories, which are written by hand: area, duration, length, mass, and volume.
+The units code is in [`icu_experimental`](https://github.com/unicode-org/icu4x/tree/main/components/experimental/src/dimension/units). It formats pre-built units in only five categories, which are written by hand: area, duration, length, mass, and volume.
 
 #### Current implementation of the API (categorized units)
 
 ##### Core architecture
 
-*   **Definition:** `CategorizedFormatter<C>` formats units for a specific category `C` (like `Length` or `Mass`), which determines the underlying data used.
+*   **Definition:** [`CategorizedFormatter<C>`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/units/categorized_formatter.rs#L58) formats units for a specific category `C` (like [`Length`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/measure/category/mod.rs#L68) or [`Mass`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/measure/category/mod.rs#L73)), which determines the underlying data used.
 *   **Settings:**
     *   **Inputs:** Takes preferences (locale + numbering system), a unit, and options.
     *   **Options:** only the width: `short` (the default), `long`, or `narrow`.
