@@ -135,8 +135,9 @@ The five category types, their 16 units, and the 15 data markers are all written
 * the unit constants of each category (see `PrebuiltUnit` below),
 * the data markers of each category, such as `UnitsNamesLengthCoreV1`.
 
-The generator keeps a table from each CLDR category name to its Rust name, so a CLDR rename
-doesn't rename anything in Rust. If we want the new name too, it is a type alias of the old one,
+>NOTE
+> The generator must keep track of  each CLDR category in ICU4X, so a CLDR rename doesn't rename anything in ICU4X.
+>If we want the new name too, it is a type alias of the old one,
 so the data is stored once. For example, if CLDR renamed `length` to `tall`:
 
 ```rust
