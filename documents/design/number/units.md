@@ -195,7 +195,7 @@ the data of all three widths. So every formatter ships all three widths.
 > **Committee discussion (data)**
 > - **Decision:** Category level. LGTM: @manish, @sffc, @younies.
 > - **Notes:**
->     - @sffc: an option is hyper-specific markers, the finest granularity, such as `MeterLengthLongV1`, `MeterLengthShortV1`, and `MeterLengthNarrowV1`.
+>     - @sffc: hyper-specific markers, like the finest of granularity. For example: `MeterLengthLongV1`, `MeterLengthShortV1`, and `MeterLengthNarrowV1`.
 >     - @manish: my view is that we do not need to be hyper-specific. In other things we have everything in the marker; in units, there is no locale dependence. I think the categorized marker is good here, and I feel more comfortable with it.
 >     - @sffc: the category is the right level here, because for smart units we will need all the length units. Hyper-specific markers are not necessary, especially if we have tiny, light, and heavy.
 >     - @younies: we already have some markers at the category level.
