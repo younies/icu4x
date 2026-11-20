@@ -238,6 +238,54 @@ The currency formatter already uses the second shape (`try_new_symbol`, `try_new
 >     -
 > - **Notes:**
 
+*Data, after measuring the split:* I first implemented one marker per width in [#8767](https://github.com/unicode-org/icu4x/pull/8767) and measured the baked data. One marker per width costs an app that uses more than one width, because a name that is the same in two widths is stored in each marker. Baked data removes duplicates only inside one marker. In CLDR 49, 4,149 of the 7,638 short entries (54%) are the same as the narrow entry of the same locale and unit.
+
+So I propose two markers per category and tier: one for `long`, and one for `short` and `narrow` together. #8767 now implements this.
+
+- `UnitsNamesLengthLongTinyV1`: the key is the unit, such as `meter`.
+- `UnitsNamesLengthShortNarrowTinyV1`: the key is the width and the unit, such as `short-meter` and `narrow-meter`.
+
+The API is still one constructor per width, such as `try_new_long_tiny`, `try_new_short_tiny`, and `try_new_narrow_tiny`. The short and the narrow constructors load the same marker.
+
+Size of the baked data of the five categories, all tiers (lookup and payloads). A column is what an app ships when it uses only those widths:
+
+| Layout | Long only | Short only | Narrow only | Short and narrow | All three widths |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| One marker for all widths (before #8767) | 1,169 KB | 1,169 KB | 1,169 KB | 1,169 KB | 1,169 KB |
+| One marker per width (first version of #8767) | 749 KB | 304 KB | 307 KB | 611 KB | 1,360 KB |
+| **`long`, and `short` with `narrow` (#8767 now)** | 749 KB | 508 KB | 508 KB | 508 KB | 1,257 KB |
+| The same, with only the essential units in tiny (test) | 721 KB | 472 KB | 472 KB | 472 KB | 1,193 KB |
+
+The same for the tiny tier alone:
+
+| Layout | Long only | Short only | Narrow only | Short and narrow | All three widths |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| One marker for all widths (before #8767) | 342 KB | 342 KB | 342 KB | 342 KB | 342 KB |
+| One marker per width (first version of #8767) | 217 KB | 83 KB | 84 KB | 167 KB | 384 KB |
+| **`long`, and `short` with `narrow` (#8767 now)** | 217 KB | 145 KB | 145 KB | 145 KB | 362 KB |
+| The same, with only the essential units in tiny (test) | 78 KB | 69 KB | 69 KB | 69 KB | 147 KB |
+
+What the tables show:
+
+- An app that uses `short` and `narrow`, or all three widths, ships 103 KB less with the merged marker (21 KB less in the tiny tier).
+- An app that uses only `short` or only `narrow` ships about 200 KB more (about 62 KB more in the tiny tier), because it gets the other width too.
+- An app that uses only `long` ships the same.
+- Against one marker for all widths, the merged layout saves 420 KB for an app that uses only `long`, and 661 KB for an app that uses `short`, `narrow`, or both.
+- For an app that needs all three widths, one marker for all widths is still the smallest: 88 KB less than the merged layout. An ECMAScript implementation is such an app, because the width is chosen at run time.
+
+The last row of each table is a test of another rule for the tiers (see Problem 4), on the same layout as #8767. Today tiny has the essential units and the units that the unit preferences use in the locale's region. In the test, tiny has only the essential units, light has every other unit that the unit preferences use in any region, and heavy has the rest. What the test shows:
+
+- Tiny gets 215 KB smaller for all three widths (362 KB to 147 KB). It has only the ten units of the duration formatter and `meter`, so area, mass, and volume have nothing in tiny.
+- Tiny and light together get 63 KB smaller (688 KB to 625 KB), and so do all tiers together. The tier of a unit no longer depends on the region, so the entry of a locale is in the same marker as the entry of its parent, and 2,479 fewer entries are stored.
+- The cost: an app that formats the units its region prefers, such as `kilometer` or `mile`, needs the light constructors. It ships 625 KB, where it ships 362 KB today.
+- It fixes [#8125](https://github.com/unicode-org/icu4x/issues/8125). Every locale has the same units in tiny, so the root locale can't hide the locale's own name. With the test data, `en-US` long `square-meter` formats as "1,000 square meters" from the light constructor, and the tiny constructor returns an error.
+
+> **_NOTE:_** These numbers are from an AI assistant, and they need a review. Every row is measured: it is from the `fingerprints.csv` that datagen wrote for that layout. The test row is not in a PR.
+
+> **Committee discussion (data, after measuring)**
+> - **Decision:** TBD
+> - **Notes:**
+
 ##### Problem 3: The name of the formatter
 
 Do we recommend the current name `CategorizedFormatter`?
