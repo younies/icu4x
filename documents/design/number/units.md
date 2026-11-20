@@ -238,39 +238,40 @@ The currency formatter already uses the second shape (`try_new_symbol`, `try_new
 >     -
 > - **Notes:**
 
-*Data, after measuring the split:* I implemented one marker per width in [#8767](https://github.com/unicode-org/icu4x/pull/8767) and measured the baked data. One marker per width costs an app that uses more than one width, because a name that is the same in two widths is stored in each marker. Baked data removes duplicates only inside one marker. In CLDR 49, 4,149 of the 7,638 short entries (54%) are the same as the narrow entry of the same locale and unit.
+*Data, after measuring the split:* I first implemented one marker per width in [#8767](https://github.com/unicode-org/icu4x/pull/8767) and measured the baked data. One marker per width costs an app that uses more than one width, because a name that is the same in two widths is stored in each marker. Baked data removes duplicates only inside one marker. In CLDR 49, 4,149 of the 7,638 short entries (54%) are the same as the narrow entry of the same locale and unit.
 
-So I propose two markers per category and tier, where #8767 has three: one for `long`, and one for `short` and `narrow` together.
+So I propose two markers per category and tier: one for `long`, and one for `short` and `narrow` together. #8767 now implements this.
 
 - `UnitsNamesLengthLongTinyV1`: the key is the unit, such as `meter`.
 - `UnitsNamesLengthShortNarrowTinyV1`: the key is the width and the unit, such as `short-meter` and `narrow-meter`.
 
-The API does not change: there is still one constructor per width, and the short and the narrow constructors load the same marker.
+The API is still one constructor per width, such as `try_new_long_tiny`, `try_new_short_tiny`, and `try_new_narrow_tiny`. The short and the narrow constructors load the same marker.
 
 Size of the baked data of the five categories, all tiers (lookup and payloads). A column is what an app ships when it uses only those widths:
 
 | Layout | Long only | Short only | Narrow only | Short and narrow | All three widths |
 | :--- | ---: | ---: | ---: | ---: | ---: |
 | One marker for all widths (before #8767) | 1,169 KB | 1,169 KB | 1,169 KB | 1,169 KB | 1,169 KB |
-| One marker per width (#8767) | 749 KB | 304 KB | 307 KB | 611 KB | 1,360 KB |
-| **`long`, and `short` with `narrow`** | 749 KB | 508 KB | 508 KB | 508 KB | 1,257 KB |
+| One marker per width (first version of #8767) | 749 KB | 304 KB | 307 KB | 611 KB | 1,360 KB |
+| **`long`, and `short` with `narrow` (#8767 now)** | 749 KB | 508 KB | 508 KB | 508 KB | 1,257 KB |
 
 The same for the tiny tier alone:
 
 | Layout | Long only | Short only | Narrow only | Short and narrow | All three widths |
 | :--- | ---: | ---: | ---: | ---: | ---: |
 | One marker for all widths (before #8767) | 342 KB | 342 KB | 342 KB | 342 KB | 342 KB |
-| One marker per width (#8767) | 217 KB | 83 KB | 84 KB | 167 KB | 384 KB |
-| **`long`, and `short` with `narrow`** | 217 KB | 145 KB | 145 KB | 145 KB | 362 KB |
+| One marker per width (first version of #8767) | 217 KB | 83 KB | 84 KB | 167 KB | 384 KB |
+| **`long`, and `short` with `narrow` (#8767 now)** | 217 KB | 145 KB | 145 KB | 145 KB | 362 KB |
 
 What the tables show:
 
 - An app that uses `short` and `narrow`, or all three widths, ships 103 KB less with the merged marker (21 KB less in the tiny tier).
 - An app that uses only `short` or only `narrow` ships about 200 KB more (about 62 KB more in the tiny tier), because it gets the other width too.
 - An app that uses only `long` ships the same.
+- Against one marker for all widths, the merged layout saves 420 KB for an app that uses only `long`, and 661 KB for an app that uses `short`, `narrow`, or both.
 - For an app that needs all three widths, one marker for all widths is still the smallest: 88 KB less than the merged layout. An ECMAScript implementation is such an app, because the width is chosen at run time.
 
-> **_NOTE:_** These numbers are from an AI assistant, and they need a review. The first two rows of each table are from `fingerprints.csv` before and after #8767. The third row is computed from the same payloads, the way the baked exporter computes its sizes. The same computation gives the exact numbers of the first two rows.
+> **_NOTE:_** These numbers are from an AI assistant, and they need a review. Every row is measured: it is from the `fingerprints.csv` that datagen wrote for that layout.
 
 > **Committee discussion (data, after measuring)**
 > - **Decision:** TBD
