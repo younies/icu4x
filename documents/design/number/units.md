@@ -327,6 +327,35 @@ Notes:
 > - **Decision:** TBD
 > - **Notes:**
 
+##### Problem 7: Units that take their patterns from another unit
+
+In CLDR's `root.xml`, 8 units have no patterns of their own. Each one points to another unit with an `<alias>`:
+
+| Unit | Falls back to |
+| :--- | :--- |
+| `year-person`, `month-person`, `week-person`, `day-person` | `year`, `month`, `week`, `day` |
+| `foodcalorie` | `kilocalorie` |
+| `dot`, `dot-per-inch`, `dot-per-centimeter` | `pixel`, `pixel-per-inch`, `pixel-per-centimeter` |
+
+This is a fallback, not a rename. Both units are valid, and a locale can give the first unit its own patterns. For example, German has its own patterns for `day-person`. When a locale has none, the unit uses the patterns of the second unit.
+
+The problem is that cldr-json, which ICU4X reads, has no entry for the unit in that case. For example, in cldr-json 49 German has nothing for `year-person`. So ICU4X finds no data for it, although CLDR resolves it to `year`.
+
+Two of these units, `year-person` and `month-person`, are in the unit preferences (usage `person-age`), and no locale has its own patterns for them today.
+
+**Solution.** Datagen follows the fallback when it writes the data:
+
+- The generator keeps the 8 fallbacks in its unit table. They are in CLDR's `root.xml`.
+- For each locale and width, if the unit has no patterns of its own, datagen writes its entry with the patterns of the unit it falls back to.
+- The unit keeps its own ID and its own constant, such as `Duration::YEAR_PERSON`. So nothing changes in the API when a locale adds its own patterns later.
+- When both units are in the same marker, the baked data stores the patterns once, because it removes duplicates inside one marker.
+
+> **_NOTE:_** This problem and its solution are a suggestion from an AI assistant, and they need a review.
+
+> **Committee discussion**
+> - **Decision:** TBD
+> - **Notes:**
+
 #### Current implementation of the measure units (`MeasureUnit`)
 
 `MeasureUnit` is a struct that holds the parts of a unit:
