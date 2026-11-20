@@ -133,9 +133,7 @@ There are **15 markers**: 3 for each of the 5 categories. The three tiers say wh
 | **`Extended`** | Units that the preferences use only in other regions | [`UnitsNamesLengthExtendedV1`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/provider/units/categorized_display_names.rs#L41) |
 | **`Outlier`** | Units that the preferences don't use | [`UnitsNamesLengthOutlierV1`](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/provider/units/categorized_display_names.rs#L43) |
 
-
-NOTE: the ICU4X committee is using tiny, light , heavy 
-
+> **_NOTE:_** The ICU4X committee uses the names tiny, light, and heavy.
 
 -   **[Lookup Key](https://github.com/unicode-org/icu4x/blob/main/components/experimental/src/dimension/units/categorized_formatter.rs#L68-L78):** A unit's entry is retrieved using the **locale** and a composite key made of
     1. The **width** 
@@ -178,8 +176,8 @@ pub type Dangi = KoreanTraditional;
 ```
 
 > **Committee discussion**
-> - **Decision:** Use the template system, 
-> - **Notes:** it should be generated freom config file, code gen .... 
+> - **Decision:** Use the template system.
+> - **Notes:** It should be generated from a config file, by code generation.
 
 ##### Problem 2: The width is an option, and all widths share one marker
 
@@ -194,33 +192,13 @@ the data of all three widths. So every formatter ships all three widths.
 - `UnitsNamesLengthShortCoreV1`
 - `UnitsNamesLengthNarrowCoreV1`
 
-
-
-> **Committee discussion**
-> - **Decision:** 
-> Category Level
-LGTM: @manish @sffc @younies 
->     
->     -
+> **Committee discussion (data)**
+> - **Decision:** Category level. LGTM: @manish, @sffc, @younies.
 > - **Notes:**
-Decision from the committee:
-@sffc: hiber specific markers, like finiest of granuarality
-@manish 
-`MeterLengthLongV1`
-`MeterLengthShortV1`
-`MeterLengthNarrowV1`
-
->@manish My view here we do not need to be hiber specific, in other things we have everything in the marker, in units, there is no locale dependence, I think categorized marker is good here , I feel more comfortable with the categorized one
-
->@sffc The comment I was want to make, the category is the right level here, because for Smart Units , we will need all the length units, and hiber units is not necessary especially if we have light, tiny, and heavy
-
->@younies we already have some categorized level, 
-
-
-
-
-
-
+>     - @sffc: an option is hyper-specific markers, the finest granularity, such as `MeterLengthLongV1`, `MeterLengthShortV1`, and `MeterLengthNarrowV1`.
+>     - @manish: my view is that we do not need to be hyper-specific. In other things we have everything in the marker; in units, there is no locale dependence. I think the categorized marker is good here, and I feel more comfortable with it.
+>     - @sffc: the category is the right level here, because for smart units we will need all the length units. Hyper-specific markers are not necessary, especially if we have tiny, light, and heavy.
+>     - @younies: we already have some markers at the category level.
 
 *API:* there are two ways to choose the width:
 
@@ -231,11 +209,8 @@ Decision from the committee:
 
 The currency formatter already uses the second shape (`try_new_symbol`, `try_new_name`, `try_new_code`), so I propose that one.
 
-> **Committee discussion**
-> - **Decision:** 
->     
->     LGTM
->     -
+> **Committee discussion (API)**
+> - **Decision:** LGTM.
 > - **Notes:**
 
 ##### Problem 3: The name of the formatter
@@ -263,21 +238,12 @@ Distinguishing between `Core` and `Extended` causes some issues:
 **Solution.** I propose to combine `Core` and `Extended` into just `Core`. Then there is only `Core` for all the units in the unit preferences, and `Outlier` for the other units.
 
 > **Committee discussion**
-> - **Decision:** 
-  we can have set of units that is always in Tiny (like meter, week [used by duration formatter]) and extra is the locale specific units from units preferences. and light and heavy
-  
-> LGTM: @manish @sffc @younies @heneri (meter in tiny)
-
+> - **Decision:** We can have a set of units that is always in tiny (like `meter`, and `week`, which the duration formatter uses). The extra units are the locale-specific units from the unit preferences. Then there are light and heavy. LGTM: @manish, @sffc, @younies, Henri (`meter` in tiny).
 > - **Notes:**
->
-> @manish: there is smart units, we want core be used on the locale and first point is interesting to me
-> 
-> @sffc : The comment from heniry, that we want to make the other locale, I am not sure if the deduplication is a problem and it is infrastructure
->
->@younies if it is just infrastructure issue, we can keep the tiny, light and heavy
-
->@manish we can have set of units that is always in Tiny (like meter, week [used by duration formatter]) and extra is the locale specific units from units preferences.
-
+>     - @manish: there are smart units. We want core to be used for the locale, and the first point is interesting to me.
+>     - @sffc: on the comment from Henri, that we want to make the other locale: I am not sure if the deduplication is a problem, and it is infrastructure.
+>     - @younies: if it is just an infrastructure issue, we can keep tiny, light, and heavy.
+>     - @manish: we can have a set of units that is always in tiny (like `meter`, and `week`, which the duration formatter uses), and the extra units are the locale-specific units from the unit preferences.
 
 ##### Problem 5: There is no split based on simple or non-simple units
 
