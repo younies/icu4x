@@ -254,6 +254,7 @@ Size of the baked data of the five categories, all tiers (lookup and payloads). 
 | One marker for all widths (before #8767) | 1,169 KB | 1,169 KB | 1,169 KB | 1,169 KB | 1,169 KB |
 | One marker per width (first version of #8767) | 749 KB | 304 KB | 307 KB | 611 KB | 1,360 KB |
 | **`long`, and `short` with `narrow` (#8767 now)** | 749 KB | 508 KB | 508 KB | 508 KB | 1,257 KB |
+| The same, with only the essential units in tiny (test) | 721 KB | 472 KB | 472 KB | 472 KB | 1,193 KB |
 
 The same for the tiny tier alone:
 
@@ -262,6 +263,7 @@ The same for the tiny tier alone:
 | One marker for all widths (before #8767) | 342 KB | 342 KB | 342 KB | 342 KB | 342 KB |
 | One marker per width (first version of #8767) | 217 KB | 83 KB | 84 KB | 167 KB | 384 KB |
 | **`long`, and `short` with `narrow` (#8767 now)** | 217 KB | 145 KB | 145 KB | 145 KB | 362 KB |
+| The same, with only the essential units in tiny (test) | 78 KB | 69 KB | 69 KB | 69 KB | 147 KB |
 
 What the tables show:
 
@@ -271,7 +273,14 @@ What the tables show:
 - Against one marker for all widths, the merged layout saves 420 KB for an app that uses only `long`, and 661 KB for an app that uses `short`, `narrow`, or both.
 - For an app that needs all three widths, one marker for all widths is still the smallest: 88 KB less than the merged layout. An ECMAScript implementation is such an app, because the width is chosen at run time.
 
-> **_NOTE:_** These numbers are from an AI assistant, and they need a review. Every row is measured: it is from the `fingerprints.csv` that datagen wrote for that layout.
+The last row of each table is a test of another rule for the tiers (see Problem 4), on the same layout as #8767. Today tiny has the essential units and the units that the unit preferences use in the locale's region. In the test, tiny has only the essential units, light has every other unit that the unit preferences use in any region, and heavy has the rest. What the test shows:
+
+- Tiny gets 215 KB smaller for all three widths (362 KB to 147 KB). It has only the ten units of the duration formatter and `meter`, so area, mass, and volume have nothing in tiny.
+- Tiny and light together get 63 KB smaller (688 KB to 625 KB), and so do all tiers together. The tier of a unit no longer depends on the region, so the entry of a locale is in the same marker as the entry of its parent, and 2,479 fewer entries are stored.
+- The cost: an app that formats the units its region prefers, such as `kilometer` or `mile`, needs the light constructors. It ships 625 KB, where it ships 362 KB today.
+- It fixes [#8125](https://github.com/unicode-org/icu4x/issues/8125). Every locale has the same units in tiny, so the root locale can't hide the locale's own name. With the test data, `en-US` long `square-meter` formats as "1,000 square meters" from the light constructor, and the tiny constructor returns an error.
+
+> **_NOTE:_** These numbers are from an AI assistant, and they need a review. Every row is measured: it is from the `fingerprints.csv` that datagen wrote for that layout. The test row is not in a PR.
 
 > **Committee discussion (data, after measuring)**
 > - **Decision:** TBD
